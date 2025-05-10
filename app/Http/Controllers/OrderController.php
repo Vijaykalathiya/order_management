@@ -9,11 +9,18 @@ use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Token;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    public function showOrderDetails(Request $request)
+    {
+        $orders = Order::with(['items', 'token'])->paginate(10);
+        return view('products.orders-view', compact('orders'));
+    }
+
     public function printOrder(Request $request)
     {
         $orderItems = $request->input('items', []);
@@ -26,15 +33,18 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
-            $latestOrder = Order::latest()->first();
-            $tokenNumber = 'T' . str_pad(optional($latestOrder)->id + 1, 5, '0', STR_PAD_LEFT);
+            // Get latest token number and wrap at 99
+            $latestToken = Token::latest()->first();
+            $nextTokenNumber = ($latestToken && $latestToken->number < 99) ? $latestToken->number + 1 : 1;
 
+            // Calculate grand total
             $grandTotal = collect($orderItems)->reduce(function ($carry, $item) {
                 return $carry + ($item['qty'] * $item['price']);
             }, 0);
 
+            // Create Order
             $order = Order::create([
-                'token_number' => $tokenNumber,
+                'token_number' => 'T' . str_pad($nextTokenNumber, 5, '0', STR_PAD_LEFT), // Optional: keep padded
                 'total_amount' => $grandTotal,
             ]);
 
@@ -48,23 +58,31 @@ class OrderController extends Controller
                 ]);
             }
 
-            // ✅ Correctly handle based on flag
+            // Save token tracking
+            Token::create([
+                'number' => $nextTokenNumber,
+                'order_id' => $order->id,
+            ]);
+
+            // Use actual token number in print
             if ($printByStation) {
                 $grouped = collect($orderItems)->groupBy('station')->values();
                 $lastGroupIndex = $grouped->count() - 1;
 
                 foreach ($grouped as $index => $items) {
                     $includeTotal = ($index === $lastGroupIndex);
-                    $this->printToPrinter($items, $tokenNumber, $items[0]['station'], $includeTotal, $grandTotal);
+                    $this->printToPrinter($items, $nextTokenNumber, $items[0]['station'], $includeTotal, $grandTotal);
                 }
             } else {
-                // Unified single print, station doesn't matter
-                $this->printToPrinter($orderItems, $tokenNumber, null, true, $grandTotal);
+                $this->printToPrinter($orderItems, $nextTokenNumber, null, true, $grandTotal);
             }
 
             DB::commit();
 
-            return response()->json(['message' => 'Order saved and printed.', 'token' => $tokenNumber]);
+            return response()->json([
+                'message' => 'Order saved and printed.',
+                'token' => $nextTokenNumber
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -72,35 +90,149 @@ class OrderController extends Controller
         }
     }
 
+    // private function printToPrinter($items, $tokenNumber, $station = null, $includeTotal = false, $grandTotal = 0)
+    // {
+    //     // Logging as plain text
+    //     $output = "Token: $tokenNumber\n";
+    //     if ($station) {
+    //         $output .= "Station: $station\n";
+    //     }
+    //     $output .= str_repeat('-', 32) . "\n";
+    //     foreach ($items as $item) {
+    //         $output .= "{$item['name']} x{$item['qty']} @ ₹{$item['price']}\n";
+    //     }
+    //     if ($includeTotal) {
+    //         $output .= str_repeat('-', 32) . "\n";
+    //         $output .= "TOTAL: ₹" . number_format($grandTotal, 2) . "\n";
+    //     }
+    //     $output .= "\n\n";
+    //     \Log::info($output);
+
+    //     // ESC/POS printer output
+    //     try {
+            
+    //         $connector = new WindowsPrintConnector("smb://localhost/TVS3230");
+    //         $printer = new Printer($connector);
+
+    //         // Header - Centered Token
+    //         $printer->setJustification(Printer::JUSTIFY_CENTER);
+    //         $printer->setTextSize(2, 2);
+    //         $printer->setEmphasis(true);
+    //         $printer->text("TOKEN: $tokenNumber\n");
+    //         $printer->setTextSize(1, 1);
+    //         $printer->setEmphasis(false);
+
+    //         // Add Date and Time in small font
+    //         $currentTime = date('Y-m-d H:i:s'); // Current Date and Time
+    //         $printer->setJustification(Printer::JUSTIFY_CENTER);
+    //         $printer->setTextSize(1, 1); // Small font size for date and time
+    //         $printer->text("Date & Time: $currentTime\n");
+
+    //         // Optional Station
+    //         if ($station) {
+    //             $printer->setJustification(Printer::JUSTIFY_LEFT);
+    //             $printer->text("Station: $station\n");
+    //         }
+
+    //         $printer->text(str_repeat('-', 32) . "\n");
+
+    //         // Order Items
+    //         foreach ($items as $item) {
+    //             $line = sprintf("%-20s x%-2d @ ₹%d\n", $item['name'], $item['qty'], $item['price']);
+    //             $printer->text($line);
+    //         }
+
+    //         // Total (only in last print if required)
+    //         if ($includeTotal) {
+    //             $printer->text(str_repeat('-', 32) . "\n");
+    //             $printer->setJustification(Printer::JUSTIFY_RIGHT);
+    //             $printer->setEmphasis(true);
+    //             $printer->text("TOTAL: ₹" . number_format($grandTotal, 2) . "\n");
+    //             $printer->setEmphasis(false);
+    //         }
+
+    //         $printer->feed(2);
+    //         $printer->cut();
+    //         $printer->close();
+
+    //     } catch (\Exception $e) {
+    //         \Log::error("Print failed: " . $e->getMessage());
+    //     }
+        
+    // }
+
     private function printToPrinter($items, $tokenNumber, $station = null, $includeTotal = false, $grandTotal = 0)
     {
+        // Logging as plain text
         $output = "Token: $tokenNumber\n";
         if ($station) {
             $output .= "Station: $station\n";
         }
+        $currentTime = date('d-m-Y h:i A');
+        $output .= "Date: $currentTime\n";
 
         $output .= str_repeat('-', 32) . "\n";
-
+        $line = sprintf("%-16s %s %s %s\n", 'Item Name', 'Qty', 'Rate', 'Amt');
+        $output .= "{$line}";
+        $output .= str_repeat('-', 32) . "\n";
         foreach ($items as $item) {
-            $output .= "{$item['name']} x{$item['qty']} @ ₹{$item['price']}\n";
+            $line = sprintf("%-16s %d %3.0f %3.0f\n", strtoupper($item['name']), $item['qty'], $item['price'], ($item['qty'] * $item['price']));
+            $output .= "{$line}";
         }
-
         if ($includeTotal) {
             $output .= str_repeat('-', 32) . "\n";
-            $output .= "TOTAL: ₹" . number_format($grandTotal, 2) . "\n";
+            $output .= "TOTAL: Rs. " . number_format($grandTotal, 2) . "\n";
         }
-
         $output .= "\n\n";
-
         \Log::info($output);
 
-        // Use escpos-php for real printing if needed:
-        /*
-        $connector = new \Mike42\Escpos\PrintConnectors\WindowsPrintConnector("RP82");
-        $printer = new \Mike42\Escpos\Printer($connector);
-        $printer->text($output);
-        $printer->cut();
-        $printer->close();
-        */
+        // try {
+        //     $connector = new WindowsPrintConnector("smb://localhost/TVS3230");
+        //     $printer = new Printer($connector);
+
+        //     // === HEADER ===
+        //     $printer->setJustification(Printer::JUSTIFY_CENTER);
+        //     $printer->setTextSize(2, 2);
+        //     $printer->setEmphasis(true);
+        //     $printer->text("TOKEN: $tokenNumber\n");
+        //     $printer->setTextSize(1, 1);
+        //     $printer->setEmphasis(false);
+
+        //     // Station (if provided)
+        //     if ($station) {
+        //         $printer->setJustification(Printer::JUSTIFY_LEFT);
+        //         $printer->text("Station: $station\n");
+        //     }
+
+        //     // Date and Time
+        //     $currentTime = date('d-m-Y h:i A');
+        //     $printer->text("Date: $currentTime\n");
+        //     $printer->feed();
+
+        //     // === ITEM LIST ===
+        //     $printer->setJustification(Printer::JUSTIFY_LEFT);
+        //     foreach ($items as $item) {
+        //         $line = sprintf("%-16s Rs.%3.0f x%d\n", strtoupper($item['name']), $item['price'], $item['qty']);
+        //         $printer->text($line);
+        //     }
+
+        //     // === TOTAL ===
+        //     if ($includeTotal) {
+        //         $printer->feed();
+        //         $printer->setJustification(Printer::JUSTIFY_RIGHT);
+        //         $printer->setEmphasis(true);
+        //         $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+        //         $printer->setEmphasis(false);
+        //     }
+
+        //     // === FINALIZE ===
+        //     $printer->feed(2);
+        //     $printer->cut();
+        //     $printer->close();
+        // } catch (\Exception $e) {
+        //     \Log::error("Print failed: " . $e->getMessage());
+        // }
     }
+
+
 }

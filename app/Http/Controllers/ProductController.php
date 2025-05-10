@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Order;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
@@ -149,13 +150,31 @@ class ProductController extends Controller
     
             $inserted++;
         }
+
+        return response("{$inserted} new products added.", 200);
     
         return back()->with('status', "$inserted new products added.");
     }
 
     public function showOrderForm()
     {
-        $products = Product::select('item_code', 'product_name', 'selling_price', 'station')->get();
-        return view('products.order-form', compact('products'));
+        $products = Product::select('item_code', 'product_name', 'selling_price', 'station', 'category_name')->get();
+
+        // Group categories
+        $categories = $products->pluck('category_name')->unique()->filter()->values();
+
+        // Get last 25 unique ordered products (Best Seller)
+        $recentOrders = Order::with('items')
+            ->latest()
+            ->take(25)
+            ->get()
+            ->pluck('items')
+            ->flatten()
+            ->unique('item_code')
+            ->pluck('item_code');
+
+        $bestSellers = Product::whereIn('item_code', $recentOrders)->get();
+
+        return view('products.order-form', compact('products', 'categories', 'bestSellers'));
     }
 }
