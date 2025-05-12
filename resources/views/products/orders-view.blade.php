@@ -3,7 +3,7 @@
 @section('title', 'All Orders')
 
 @section('css')
-<link href="https://unpkg.com/tabulator-tables@5.4.4/dist/css/tabulator.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('css/tabulator.min.css') }}">
 <style>
     .container {
         margin: 30px auto;

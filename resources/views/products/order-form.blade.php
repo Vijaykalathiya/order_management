@@ -137,6 +137,7 @@
             border-radius: 5px;
             border: none;
             cursor: pointer;
+            color: white;
         }
 
         .form-footer button:hover {
@@ -255,7 +256,7 @@
                     Print by Station
                 </label>
                 <div class="form-footer">
-                    <button type="button" id="printOrder">Print Order</button>
+                    <button type="button" id="printOrder">Create Order & Print</button>
                 </div>
             </div>
             <table id="orderSummary">

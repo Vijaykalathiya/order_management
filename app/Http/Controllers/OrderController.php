@@ -164,74 +164,74 @@ class OrderController extends Controller
     private function printToPrinter($items, $tokenNumber, $station = null, $includeTotal = false, $grandTotal = 0)
     {
         // Logging as plain text
-        $output = "Token: $tokenNumber\n";
-        if ($station) {
-            $output .= "Station: $station\n";
-        }
-        $currentTime = date('d-m-Y h:i A');
-        $output .= "Date: $currentTime\n";
-
-        $output .= str_repeat('-', 32) . "\n";
-        $line = sprintf("%-16s %s %s %s\n", 'Item Name', 'Qty', 'Rate', 'Amt');
-        $output .= "{$line}";
-        $output .= str_repeat('-', 32) . "\n";
-        foreach ($items as $item) {
-            $line = sprintf("%-16s %d %3.0f %3.0f\n", strtoupper($item['name']), $item['qty'], $item['price'], ($item['qty'] * $item['price']));
-            $output .= "{$line}";
-        }
-        if ($includeTotal) {
-            $output .= str_repeat('-', 32) . "\n";
-            $output .= "TOTAL: Rs. " . number_format($grandTotal, 2) . "\n";
-        }
-        $output .= "\n\n";
-        \Log::info($output);
-
-        // try {
-        //     $connector = new WindowsPrintConnector("smb://localhost/TVS3230");
-        //     $printer = new Printer($connector);
-
-        //     // === HEADER ===
-        //     $printer->setJustification(Printer::JUSTIFY_CENTER);
-        //     $printer->setTextSize(2, 2);
-        //     $printer->setEmphasis(true);
-        //     $printer->text("TOKEN: $tokenNumber\n");
-        //     $printer->setTextSize(1, 1);
-        //     $printer->setEmphasis(false);
-
-        //     // Station (if provided)
-        //     if ($station) {
-        //         $printer->setJustification(Printer::JUSTIFY_LEFT);
-        //         $printer->text("Station: $station\n");
-        //     }
-
-        //     // Date and Time
-        //     $currentTime = date('d-m-Y h:i A');
-        //     $printer->text("Date: $currentTime\n");
-        //     $printer->feed();
-
-        //     // === ITEM LIST ===
-        //     $printer->setJustification(Printer::JUSTIFY_LEFT);
-        //     foreach ($items as $item) {
-        //         $line = sprintf("%-16s Rs.%3.0f x%d\n", strtoupper($item['name']), $item['price'], $item['qty']);
-        //         $printer->text($line);
-        //     }
-
-        //     // === TOTAL ===
-        //     if ($includeTotal) {
-        //         $printer->feed();
-        //         $printer->setJustification(Printer::JUSTIFY_RIGHT);
-        //         $printer->setEmphasis(true);
-        //         $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
-        //         $printer->setEmphasis(false);
-        //     }
-
-        //     // === FINALIZE ===
-        //     $printer->feed(2);
-        //     $printer->cut();
-        //     $printer->close();
-        // } catch (\Exception $e) {
-        //     \Log::error("Print failed: " . $e->getMessage());
+        // $output = "Token: $tokenNumber\n";
+        // if ($station) {
+        //     $output .= "Station: $station\n";
         // }
+        // $currentTime = date('d-m-Y h:i A');
+        // $output .= "Date: $currentTime\n";
+
+        // $output .= str_repeat('-', 32) . "\n";
+        // $line = sprintf("%-16s %s %s %s\n", 'Item Name', 'Qty', 'Rate', 'Amt');
+        // $output .= "{$line}";
+        // $output .= str_repeat('-', 32) . "\n";
+        // foreach ($items as $item) {
+        //     $line = sprintf("%-16s %d %3.0f %3.0f\n", strtoupper($item['name']), $item['qty'], $item['price'], ($item['qty'] * $item['price']));
+        //     $output .= "{$line}";
+        // }
+        // if ($includeTotal) {
+        //     $output .= str_repeat('-', 32) . "\n";
+        //     $output .= "TOTAL: Rs. " . number_format($grandTotal, 2) . "\n";
+        // }
+        // $output .= "\n\n";
+        // \Log::info($output);
+
+        try {
+            $connector = new WindowsPrintConnector("smb://localhost/TVS3230");
+            $printer = new Printer($connector);
+
+            // === HEADER ===
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setTextSize(2, 2);
+            $printer->setEmphasis(true);
+            $printer->text("TOKEN: $tokenNumber\n");
+            $printer->setTextSize(1, 1);
+            $printer->setEmphasis(false);
+
+            // Station (if provided)
+            if ($station) {
+                $printer->setJustification(Printer::JUSTIFY_LEFT);
+                $printer->text("Station: $station\n");
+            }
+
+            // Date and Time
+            $currentTime = date('d-m-Y h:i A');
+            $printer->text("Date: $currentTime\n");
+            $printer->feed();
+
+            // === ITEM LIST ===
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            foreach ($items as $item) {
+                $line = sprintf("%-16s Rs.%3.0f x%d\n", strtoupper($item['name']), $item['price'], $item['qty']);
+                $printer->text($line);
+            }
+
+            // === TOTAL ===
+            if ($includeTotal) {
+                $printer->feed();
+                $printer->setJustification(Printer::JUSTIFY_RIGHT);
+                $printer->setEmphasis(true);
+                $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+                $printer->setEmphasis(false);
+            }
+
+            // === FINALIZE ===
+            $printer->feed(2);
+            $printer->cut();
+            $printer->close();
+        } catch (\Exception $e) {
+            \Log::error("Print failed: " . $e->getMessage());
+        }
     }
 
 

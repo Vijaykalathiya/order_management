@@ -67,7 +67,8 @@ class ProductController extends Controller
 
     public function showForm()
     {
-        return view('products.import');
+        $products = Product::latest()->get(); // You can paginate or filter as needed
+        return view('products.import', compact('products'));
     }
 
     public function import(Request $request)
@@ -151,9 +152,11 @@ class ProductController extends Controller
             $inserted++;
         }
 
-        return response("{$inserted} new products added.", 200);
+        return redirect()->route('products.import')->with('success', "{$inserted} new products added.");
+
+        // return response("{$inserted} new products added.", 200);
     
-        return back()->with('status', "$inserted new products added.");
+        // return back()->with('status', "$inserted new products added.");
     }
 
     public function showOrderForm()
