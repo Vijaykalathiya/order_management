@@ -187,9 +187,10 @@ class OrderController extends Controller
         // \Log::info($output);
 
         try {
+            // Connect to the printer
             $connector = new WindowsPrintConnector("smb://localhost/TVS3230");
             $printer = new Printer($connector);
-
+        
             // === HEADER ===
             $printer->setJustification(Printer::JUSTIFY_CENTER);
             $printer->setTextSize(2, 2);
@@ -197,25 +198,33 @@ class OrderController extends Controller
             $printer->text("TOKEN: $tokenNumber\n");
             $printer->setTextSize(1, 1);
             $printer->setEmphasis(false);
-
+        
             // Station (if provided)
             if ($station) {
                 $printer->setJustification(Printer::JUSTIFY_LEFT);
                 $printer->text("Station: $station\n");
             }
-
+        
             // Date and Time
             $currentTime = date('d-m-Y h:i A');
             $printer->text("Date: $currentTime\n");
             $printer->feed();
-
+        
             // === ITEM LIST ===
             $printer->setJustification(Printer::JUSTIFY_LEFT);
+
+            // Switch to smaller font to fit more text per line
+            $printer->setFont(Printer::FONT_B);
+
             foreach ($items as $item) {
-                $line = sprintf("%-16s Rs.%3.0f x%d\n", strtoupper($item['name']), $item['price'], $item['qty']);
+                $line = sprintf("%-16s Rs. %6.2f x%-2d\n", strtoupper($item['name']), $item['price'], $item['qty']);
                 $printer->text($line);
             }
 
+            // Reset to default font after item list
+            $printer->setFont(Printer::FONT_A);
+
+        
             // === TOTAL ===
             if ($includeTotal) {
                 $printer->feed();
@@ -224,14 +233,15 @@ class OrderController extends Controller
                 $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
                 $printer->setEmphasis(false);
             }
-
+        
             // === FINALIZE ===
-            $printer->feed(2);
-            $printer->cut();
-            $printer->close();
+            $printer->feed(2); // Feed 2 lines for space
+            $printer->cut(); // Cut the paper
+            $printer->close(); // Close the printer connection
         } catch (\Exception $e) {
+            // Error handling: Log the error if print fails
             \Log::error("Print failed: " . $e->getMessage());
-        }
+        }        
     }
 
 

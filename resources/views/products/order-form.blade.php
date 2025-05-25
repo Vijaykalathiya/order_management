@@ -173,6 +173,45 @@
             font-weight: 600;
         }
 
+        .qty-control {
+            display: inline-flex;
+            align-items: center;
+            background-color: #1976d2; /* Material blue */
+            border-radius: 10px;
+            padding: 4px 8px;
+            color: white;
+            font-weight: bold;
+            min-width: 90px;
+            justify-content: space-between;
+        }
+
+        .qty-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qty-btn:focus {
+            outline: none;
+        }
+
+        .qty-display {
+            margin: 0 8px;
+            min-width: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+
+
         /* Responsiveness */
         @media (max-width: 768px) {
             .order-details {
@@ -266,7 +305,6 @@
                         <th>QTY</th>
                         <th>Price</th>
                         <th>Total</th>
-                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -308,6 +346,7 @@
                     <div class="fav-card"
                         data-code="${item.item_code}"
                         data-name="${item.product_name}"
+                        data-station="${item.station}"
                         data-price="${parseFloat(item.selling_price)}"
                         style="background: #f1f8ff; padding: 10px; border: 1px solid #ccc;
                             border-radius: 8px; width: 140px; text-align: center; cursor: pointer;">
@@ -351,7 +390,11 @@
                     $qty.focus().select(); // Focus and select text
                 }
             });
-    
+
+            function normalizeCodeMatch(list, code) {
+                return list.find(item => String(item.code) === String(code));
+            }
+
             // Enter on QTY adds to orderList
             $(document).on('keydown', '.quantity', function (e) {
                 if (e.key === 'Enter') {
@@ -372,11 +415,11 @@
                     const qty = parseInt($row.find('.quantity').val().trim());
     
                     if (code && name && !isNaN(price)) {
-                        const existing = orderList.find(item => item.code === code);
+                        const existing = normalizeCodeMatch(orderList, code);
                         if (existing) {
                             existing.qty += qty;
                         } else {
-                            orderList.push({ code, name, price, qty: Math.abs(qty), station });
+                            orderList.push({ code: String(code), name, price, qty: Math.abs(qty), station });
                         }
     
                         updateSummaryTable();
@@ -414,12 +457,13 @@
                 const code = $(this).data('code');
                 const name = $(this).data('name');
                 const price = parseFloat($(this).data('price'));
+                const station = $(this).data('station') || 'Default';
     
-                const existing = orderList.find(item => item.code === code);
+                const existing = normalizeCodeMatch(orderList, code);
                 if (existing) {
                     existing.qty += 1;
                 } else {
-                    orderList.push({ code, name, price, qty: 1, station: 'Default' });
+                    orderList.push({ code: String(code), name, price, qty: 1, station });
                 }
     
                 updateSummaryTable();
@@ -462,31 +506,61 @@
                 handlePrint();
             });
 
+            $(document).on('click', '.increase-qty', function () {
+                const code = $(this).data('code');
+                const existing = normalizeCodeMatch(orderList, code);
+                if (existing) {
+                    existing.qty++;
+                    updateSummaryTable();
+                }
+            });
+
+            $(document).on('click', '.decrease-qty', function () {
+                const code = $(this).data('code');
+                const existingIndex = orderList.findIndex(item => String(item.code) === String(code));
+                if (existingIndex > -1) {
+                    orderList[existingIndex].qty--;
+                    if (orderList[existingIndex].qty <= 0) {
+                        orderList.splice(existingIndex, 1); // Remove item
+                    }
+                    updateSummaryTable();
+                }
+            });
+
             function updateSummaryTable() {
                 const $tbody = $('#orderSummary tbody');
                 $tbody.empty();
-    
-                let total_amount = parseFloat(0);
+
+                let total_amount = 0;
+
                 orderList.forEach((item, index) => {
                     const total = (item.qty * item.price).toFixed(2);
-                    total_amount = (parseFloat(total_amount) + parseFloat(total)).toFixed(2);
+                    total_amount += parseFloat(total);
+
                     $tbody.append(`
                         <tr data-index="${index}">
                             <td>${item.name}</td>
-                            <td>${item.qty}</td>
+                            <td>
+                                <div class="qty-control">
+                                    <button class="qty-btn decrease-qty" data-code="${item.code}">−</button>
+                                    <span class="qty-display">${item.qty}</span>
+                                    <button class="qty-btn increase-qty" data-code="${item.code}">+</button>
+                                </div>
+                            </td>
                             <td>${item.price}</td>
                             <td>${total}</td>
-                            <td><button class="btn btn-sm btn-danger delete-item">Delete</button></td>
                         </tr>
                     `);
                 });
+
                 $tbody.append(`
                     <tr>
-                        <td colspan=3 class="order-summary-footer">Total Amount</td>
-                        <td class="order-summary-footer">${total_amount}</td>
+                        <td colspan="3" class="order-summary-footer">Total Amount</td>
+                        <td class="order-summary-footer">${total_amount.toFixed(2)}</td>
                     </tr>
                 `);
             }
+
         });
     </script>
 @endsection

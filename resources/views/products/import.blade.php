@@ -74,10 +74,17 @@
         </form>
 
         <div id="result" class="upload-result"></div>
+        @if(session('success'))
+            <div style="color: green; font-weight: bold; margin-bottom: 10px;">
+                {{ session('success') }}
+            </div>
+        @endif
+
     </div>
 
     <div class="product-listing"> 
         <button id="exportPdfBtn" class="export-btn">Export as PDF</button>
+        <div id="product-count" class="mb-2 font-bold text-right"></div>
         <div id="products-table" style="margin-top: 20px;"></div>
     </div>
 </div>
@@ -98,6 +105,29 @@
         fileInput.addEventListener('change', function () {
             const fileName = this.files[0]?.name || '';
             fileNameDisplay.textContent = fileName ? `Selected: ${fileName}` : '';
+        });
+
+        function updateProductCount() {
+            const total = table.getData().length;
+            const filtered = table.getDataCount(); // counts filtered rows
+            const display = filtered === total 
+                ? `Total Products: ${total}` 
+                : `Showing ${filtered} of ${total} products`;
+            document.getElementById('product-count').textContent = display;
+        }
+
+        let table = new Tabulator("#products-table", {
+            data: @json($products ?? []),
+            layout: "fitColumns",
+            pagination: "local",
+            paginationSize: 25,
+            paginationSizeSelector: [10, 25, 50, 100],
+            columns: [
+                { title: "Product Code", field: "item_code", headerFilter: "input" },
+                { title: "Product Name", field: "product_name", headerFilter: "input" },
+                { title: "Category", field: "category_name", headerFilter: "input" },
+                { title: "Price", field: "selling_price", headerFilter: "input" }
+            ]
         });
 
         document.getElementById('uploadForm').addEventListener('submit', async function (e) {
@@ -121,12 +151,18 @@
                     body: formData
                 });
 
-                const text = await response.text();
+                const data = await response.json();
 
-                if (response.ok) {
-                    resultDiv.innerHTML = `<p class="success-message">Upload successful: ${text}</p>`;
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `<p class="success-message">${data.message}</p>`;
+
+                    // ✅ Update Tabulator with new data
+                    table.setData(data.products);
+                    table.clearFilter();
+                    table.clearSort();
+
                 } else {
-                    resultDiv.innerHTML = `<p class="error-message">Upload failed: ${text}</p>`;
+                    resultDiv.innerHTML = `<p class="error-message">${data.message}</p>`;
                 }
             } catch (err) {
                 resultDiv.innerHTML = `<p class="error-message">An error occurred: ${err.message}</p>`;
@@ -137,18 +173,13 @@
         });
 
         document.addEventListener("DOMContentLoaded", function () {
-            const table = new Tabulator("#products-table", {
-                data: @json($products ?? []), // Assuming you pass $products from controller
-                layout: "fitColumns",
-                pagination: "local",
-                paginationSize: 25,
-                columns: [
-                    { title: "Product Code", field: "item_code", headerFilter: "input" },
-                    { title: "Product Name", field: "product_name", headerFilter: "input" },
-                    { title: "Category", field: "category_name", headerFilter: "input" },
-                    { title: "Price", field: "selling_price", headerFilter: "input" }
-                ]
-            });
+
+            // Hook into changes
+            table.on("dataLoaded", updateProductCount);
+            table.on("dataProcessed", updateProductCount);
+
+            // Optional: Initial update
+            updateProductCount();
 
             document.getElementById("exportPdfBtn").addEventListener("click", () => {
                 const { jsPDF } = window.jspdf;
