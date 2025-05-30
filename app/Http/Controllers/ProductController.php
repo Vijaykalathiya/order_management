@@ -87,8 +87,10 @@ class ProductController extends Controller
             foreach (array_slice($data[0], 1) as $row) {
                 $row = array_combine($header, $row);
                 $itemCode = $row['item code'] ?? null;
-        
-                if (!$itemCode || Product::where('item_code', $itemCode)->exists()) {
+        	$checkExist = Product::where('item_code', $itemCode)->first();
+                if (!$itemCode || $checkExist) {
+                $checkExist->selling_price = safeDecimal($row['selling price'] ?? null);
+                $checkExist->save();
                     continue;
                 }
         

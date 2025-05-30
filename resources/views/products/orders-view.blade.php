@@ -63,8 +63,9 @@
 @endsection
 
 @section('scripts')
+<script src="{{ asset('js/jquery-3.6.0.min.js') }}"></script>
 <script src="{{ asset('js/tabulator.min.js') }}"></script>
-<script src="{{ asset('js/jspdf-2.5.1.umd.min') }}"></script>
+<script src="{{ asset('js/jspdf-2.5.1.umd.min.js') }}"></script>
 <script src="{{ asset('js/jspdf.plugin.autotable-3.5.25.min.js') }}"></script>
 
 
@@ -96,11 +97,47 @@
                     mutator: value => {
                         if (!value) return "";
                         const dateObj = new Date(value);
-                        return dateObj.toLocaleString(); // includes both date & time in local format
+                        return dateObj.toLocaleString();
+                    }
+                },
+                {
+                    title: "Print",
+                    headerSort: false,
+                    formatter: () => `<button class="print-btn">🖨️ Print</button>`,
+                    cellClick: function (e, cell) {
+                        const order = cell.getData();
+
+                        console.log(order);
+
+                        const orderItems = order.items.map(item => ({
+                            code: item.item_code,
+                            name: item.name,
+                            qty: item.qty,
+                            price: item.price,
+                            station: item.station ?? null,
+                        }));
+
+                        $.ajax({
+                            url: "{{ route('print.order') }}",
+                            type: "POST",
+                            data: {
+                                _token: "{{ csrf_token() }}",
+                                items: orderItems,
+                                printByStation: false,
+                                existingOrderId: order.id,
+
+                            },
+                            success: function () {
+                                alert('Receipt sent to printer.');
+                            },
+                            error: function (xhr) {
+                                alert('Failed to print: ' + (xhr.responseJSON?.error ?? 'Unknown error'));
+                            }
+                        });
                     }
                 }
-
             ]
+
         });
 
         // Custom date range filter

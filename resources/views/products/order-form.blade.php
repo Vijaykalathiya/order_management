@@ -493,7 +493,9 @@
                         printByStation: printByStation
                     },
                     success: function () {
-                        alert('Order sent to printer');
+                        orderList = [];
+                        const $tbody = $('#orderSummary tbody');
+                        $tbody.empty();
                     },
                     error: function (xhr) {
                         alert('Failed to print: ' + xhr.responseJSON?.error);
@@ -560,6 +562,14 @@
                     </tr>
                 `);
             }
+
+		document.addEventListener('keydown', function(event) {
+                // F7 has keyCode 118
+                if (event.key === 'F7' || event.keyCode === 118) {
+                    event.preventDefault();
+                    handlePrint();
+                }
+            });
 
         });
     </script>
