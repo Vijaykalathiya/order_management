@@ -111,73 +111,108 @@ class OrderController extends Controller
 
     }
 
+    // Function to split string into chunks of 15 characters
+    function splitItemName($name, $length = 15) {
+        return str_split($name, $length);
+    }
+
+
     private function printToPrinter($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0)
     {
 
-        try {
-            // Connect to the printer
-            $connector = new WindowsPrintConnector("smb://localhost/TVS3230");
-            $printer = new Printer($connector);
-        
-            // === HEADER ===
-            $printer->setJustification(Printer::JUSTIFY_CENTER);
-		    $printer->setTextSize(1, 2);
-            $printer->setEmphasis(false);
-        
-            // Station (if provided)
-            if ($station) {
-                $printer->setJustification(Printer::JUSTIFY_CENTER);
-                $printer->text("$station\n");
-            }
+        $printers = [
+            "smb://localhost/TVS3230",
+            "smb://localhost/RP82"
+        ];
+    
+        $printed = false;
 
-            $printer->setTextSize(1, 1);
-            $printer->setEmphasis(true);
-            if ($station) {
-                $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
-            } else {
-                $printer->text("TOKEN: $tokenNumber\n");
-		    }
+        foreach ($printers as $printerPath) {
+            try {
+                // Connect to the printer
+                $connector = new WindowsPrintConnector($printerPath);
+                $printer = new Printer($connector);
             
-		    $printer->setTextSize(1, 1);
-            $printer->setEmphasis(false);
-        
-            // Date and Time
-            $currentTime = date('d-m-Y h:i A');
-            $printer->text("Date: $currentTime\n");
-            $printer->feed();
-        
-            // === ITEM LIST ===
-            $printer->setJustification(Printer::JUSTIFY_CENTER);
-
-            // Switch to smaller font to fit more text per line
-            $printer->setFont(Printer::FONT_A);
-
-            foreach ($items as $item) {
-                $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
-                $printer->text($line);
-            }
-
-            // Reset to default font after item list
-            $printer->setFont(Printer::FONT_A);
-
-        
-            // === TOTAL ===
-            if ($includeTotal) {
-                $printer->feed();
+                // === HEADER ===
                 $printer->setJustification(Printer::JUSTIFY_CENTER);
-                $printer->setEmphasis(true);
-                $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+                $printer->setTextSize(1, 2);
                 $printer->setEmphasis(false);
+            
+                // Station (if provided)
+                if ($station) {
+                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    $printer->text("$station\n");
+                }
+
+                $printer->setTextSize(1, 1);
+                $printer->setEmphasis(true);
+                if ($station) {
+                    $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
+                } else {
+                    $printer->text("TOKEN: $tokenNumber\n");
+                }
+                
+                $printer->setTextSize(1, 1);
+                $printer->setEmphasis(false);
+            
+                // Date and Time
+                $currentTime = date('d-m-Y h:i A');
+                $printer->text("Date: $currentTime\n");
+                $printer->feed();
+            
+                // === ITEM LIST ===
+                $printer->setJustification(Printer::JUSTIFY_CENTER);
+
+                // Switch to smaller font to fit more text per line
+                $printer->setFont(Printer::FONT_A);
+
+                foreach ($items as $item) {
+                    $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
+                    $printer->text($line);
+                }
+
+                $nameParts = splitItemName(strtoupper($item['name']), 15);
+
+                $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
+
+                for ($i = 1; $i < count($nameParts); $i++) {
+                    // Print remaining parts on new lines, qty and price empty
+                    $line .= sprintf("%-16s\n", $nameParts[$i]);
+                }
+
+                // Reset to default font after item list
+                $printer->setFont(Printer::FONT_A);
+
+            
+                // === TOTAL ===
+                if ($includeTotal) {
+                    $printer->feed();
+                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    $printer->setEmphasis(true);
+                    $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+                    $printer->setEmphasis(false);
+                }
+            
+                // === FINALIZE ===
+                $printer->feed(2); // Feed 2 lines for space
+                $printer->cut(); // Cut the paper
+                $printer->close(); // Close the printer connection
+
+                $printed = true;
+                break;
+
+            } catch (\Exception $e) {
+                // Error handling: Log the error if print fails
+                // \Log::error("Print failed: " . $e->getMessage());
+                \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
+                continue;
             }
-        
-            // === FINALIZE ===
-            $printer->feed(2); // Feed 2 lines for space
-            $printer->cut(); // Cut the paper
-            $printer->close(); // Close the printer connection
-        } catch (\Exception $e) {
-            // Error handling: Log the error if print fails
-            \Log::error("Print failed: " . $e->getMessage());
-        }        
+        }
+        if (!$printed) {
+            return response()->json(['error' => 'All printers failed'], 500);
+        }
+    
+        return response()->json(['success' => true]);
     }
 
 
