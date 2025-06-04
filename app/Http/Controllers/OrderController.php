@@ -120,9 +120,11 @@ class OrderController extends Controller
     private function printToPrinter($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0)
     {
 
+        // "smb://localhost/TVS3230",
+        // "smb://localhost/RugtekPrinter"
+
         $printers = [
-            "smb://localhost/TVS3230",
-            "smb://localhost/RP82"
+            "smb://localhost/RugtekPrinter"
         ];
     
         $printed = false;
