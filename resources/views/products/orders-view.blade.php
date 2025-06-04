@@ -38,6 +38,12 @@
         padding: 5px;
         box-sizing: border-box;
     }
+
+    #totalAmountDisplay {
+        margin-top: 20px;
+        font-weight: bold;
+        font-size: 18px;
+    }
 </style>
 @endsection
 
@@ -53,8 +59,7 @@
         <button id="clearDateFilter" style="margin-left: 5px;">Clear</button>
 
         <button id="exportPdfBtn" class="export-btn" style="margin-left: 10px;">Export as PDF</button>
-
-
+        <button id="exportExcelBtn" class="export-btn" style="margin-left: 10px;">Export as Excel</button>
     </div>
 
     <div id="orders-table"></div>
@@ -67,15 +72,13 @@
 <script src="{{ asset('js/tabulator.min.js') }}"></script>
 <script src="{{ asset('js/jspdf-2.5.1.umd.min.js') }}"></script>
 <script src="{{ asset('js/jspdf.plugin.autotable-3.5.25.min.js') }}"></script>
-
+<script src="{{asset('js/xlsx.full.min.js')}}"></script>
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const table = new Tabulator("#orders-table", {
-            data: @json($orders->items()),
+            data: @json($orders),
             layout: "fitColumns",
-            pagination: "local",
-            paginationSize: 10,
             columns: [
                 { title: "Order ID", field: "id", headerFilter: "input" },
                 { title: "Order Token", field: "token_number", headerFilter: "input" },
@@ -89,7 +92,17 @@
                         return items.map(item => `${item.name} (${item.qty} * ${item.price})`).join("<br>");
                     }
                 },
-                { title: "Total", field: "total_amount", headerFilter: "input" },
+                {
+                    title: "Total",
+                    field: "total_amount",
+                    headerFilter: "input",
+                    bottomCalc: "sum", // ✅ This shows the sum under the column
+                    bottomCalcFormatter: "money",
+                    bottomCalcFormatterParams: {
+                        symbol: "₹",
+                        precision: 2
+                    }
+                },
                 {
                     title: "Date",
                     field: "created_at",
@@ -136,37 +149,37 @@
                         });
                     }
                 }
-            ]
-
+            ],
+            downloadConfig: {
+                columnGroups: false,
+                rowGroups: false,
+                columnCalcs: false,
+            }
         });
 
-        // Custom date range filter
-        function dateRangeFilter(data) {
-            const from = document.getElementById("dateFrom").value;
-            const to = document.getElementById("dateTo").value;
-
-            const date = data.created_at.split("T")[0];
-
-            return (!from || date >= from) && (!to || date <= to);
-        }
-
+        
         document.getElementById("applyDateFilter").addEventListener("click", () => {
             const from = document.getElementById("dateFrom").value;
             const to = document.getElementById("dateTo").value;
 
-            table.setFilter((data) => {
-                const rawDate = data.created_at;
-
+            table.setFilter((rowData) => {
+                const rawDate = rowData.created_at;
                 if (!rawDate) return false;
 
-                const dateObj = new Date(rawDate);
-                if (isNaN(dateObj.getTime())) return false;
+                // Assume format is DD/MM/YYYY, HH:MM:SS
+                const [datePart] = rawDate.split(','); // "04/06/2025"
+                const [day, month, year] = datePart.trim().split('/').map(Number);
+                const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                const dateOnly = dateObj.toISOString().split("T")[0];
+                if (from && formatted < from) return false;
+                if (to && formatted > to) return false;
 
-                return (!from || dateOnly >= from) && (!to || dateOnly <= to);
+                return true;
             });
         });
+
+
+
 
 
         document.getElementById("clearDateFilter").addEventListener("click", () => {
@@ -175,47 +188,121 @@
             table.clearFilter(true);
         });
 
+        // document.getElementById("exportPdfBtn").addEventListener("click", () => {
+        //     const { jsPDF } = window.jspdf;
+        //     const doc = new jsPDF();
+
+        //     const data = table.getData();
+
+        //     if (!data.length) {
+        //         alert("No data to export.");
+        //         return;
+        //     }
+
+        //     const headers = ["Order ID", "Token Number", "Items", "Total", "Date"];
+        //     const rows = data.map(order => [
+        //         order.id,
+        //         order.token_number,
+        //         order.items.map(i => `${i.name} (${i.qty})`).join(", "),
+        //         order.total_amount,
+        //         new Date(order.created_at).toLocaleString(),
+        //     ]);
+
+        //     doc.setFontSize(14);
+        //     doc.text("Orders Report", 14, 16);
+
+        //     doc.autoTable({
+        //         startY: 20,
+        //         head: [headers],
+        //         body: rows,
+        //         styles: { fontSize: 10 },
+        //         headStyles: { fillColor: [52, 73, 94] },
+        //     });
+
+        //     doc.save("orders-report.pdf");
+        // });
+
+        // document.getElementById("exportExcelBtn").addEventListener("click", () => {
+        //     const fullData = table.getData();
+
+        //     if (!fullData.length) {
+        //         alert("No data to export.");
+        //         return;
+        //     }
+
+        //     const formattedData = fullData.map(order => ({
+        //         "Order ID": order.id,
+        //         "Token Number": order.token_number,
+        //         "Items": order.items.map(i => `${i.name} (${i.qty})`).join(", "),
+        //         "Total": order.total_amount,
+        //         "Date": new Date(order.created_at).toLocaleString(),
+        //     }));
+
+        //     const ws = XLSX.utils.json_to_sheet(formattedData);
+        //     const wb = XLSX.utils.book_new();
+        //     XLSX.utils.book_append_sheet(wb, ws, "Orders");
+
+        //     XLSX.writeFile(wb, "orders-report.xlsx");
+        // });
 
         document.getElementById("exportPdfBtn").addEventListener("click", () => {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-            // Fetch current filtered data
-            const data = table.getData();
+    // Get only visible (filtered and sorted) data
+    const data = table.getData("active");
 
-            if (!data.length) {
-                alert("No data to export.");
-                return;
-            }
+    if (!data.length) {
+        alert("No data to export.");
+        return;
+    }
 
-            // Prepare table headers and rows
-            const headers = ["Order ID", "Token Number", "Items", "Total", "Date"];
-            const rows = data.map(order => [
-                order.id,
-                order.token_number,
-                order.items.map(i => `${i.name} (${i.qty})`).join(", "),
-                order.total_amount,
-                order.created_at.split("T")[0],
-            ]);
+    const headers = ["Order ID", "Token Number", "Items", "Total", "Date"];
+    const rows = data.map(order => [
+        order.id,
+        order.token_number,
+        order.items.map(i => `${i.name} (${i.qty})`).join(", "),
+        order.total_amount,
+        new Date(order.created_at).toLocaleString(),
+    ]);
 
-            // Add title
-            doc.setFontSize(14);
-            doc.text("Orders Report", 14, 16);
+    doc.setFontSize(14);
+    doc.text("Orders Report", 14, 16);
 
-            // Draw table
-            doc.autoTable({
-                startY: 20,
-                head: [headers],
-                body: rows,
-                styles: { fontSize: 10 },
-                headStyles: { fillColor: [52, 73, 94] },
-            });
+    doc.autoTable({
+        startY: 20,
+        head: [headers],
+        body: rows,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [52, 73, 94] },
+    });
 
-            // Save the PDF
-            doc.save("orders-report.pdf");
-        });
+    doc.save("orders-report.pdf");
+});
 
+document.getElementById("exportExcelBtn").addEventListener("click", () => {
+    // Get only visible (filtered and sorted) data
+    const fullData = table.getData("active");
 
+    if (!fullData.length) {
+        alert("No data to export.");
+        return;
+    }
+
+    const formattedData = fullData.map(order => ({
+        "Order ID": order.id,
+        "Token Number": order.token_number,
+        "Items": order.items.map(i => `${i.name} (${i.qty})`).join(", "),
+        "Total": order.total_amount,
+        "Date": new Date(order.created_at).toLocaleString(),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(formattedData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Orders");
+
+    XLSX.writeFile(wb, "orders-report.xlsx");
+});
 
     });
 </script>

@@ -19,7 +19,7 @@ class OrderController extends Controller
     {
         $orders = Order::with(['items', 'token'])
                ->orderBy('created_at', 'desc')
-               ->paginate(10);
+               ->get();
 
         return view('products.orders-view', compact('orders'));
 
@@ -171,7 +171,7 @@ class OrderController extends Controller
                     $printer->text($line);
                 }
 
-                $nameParts = splitItemName(strtoupper($item['name']), 15);
+                $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
 
                 $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
 
