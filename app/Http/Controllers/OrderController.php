@@ -138,7 +138,7 @@ class OrderController extends Controller
                 // === HEADER ===
                 $printer->setJustification(Printer::JUSTIFY_CENTER);
                 $printer->setTextSize(1, 2);
-                $printer->setEmphasis(false);
+                $printer->setEmphasis(true);
             
                 // Station (if provided)
                 if ($station) {
