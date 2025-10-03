@@ -158,25 +158,30 @@
         });
 
         
-        document.getElementById("applyDateFilter").addEventListener("click", () => {
-            const from = document.getElementById("dateFrom").value;
-            const to = document.getElementById("dateTo").value;
+document.getElementById("applyDateFilter").addEventListener("click", () => {
+    const from = document.getElementById("dateFrom").value; // YYYY-MM-DD
+    const to = document.getElementById("dateTo").value;     // YYYY-MM-DD
 
-            table.setFilter((rowData) => {
-                const rawDate = rowData.created_at;
-                if (!rawDate) return false;
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
 
-                // Assume format is DD/MM/YYYY, HH:MM:SS
-                const [datePart] = rawDate.split(','); // "04/06/2025"
-                const [day, month, year] = datePart.trim().split('/').map(Number);
-                const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    table.setFilter((rowData) => {
+        const rawDate = rowData.created_at; // e.g., "9/14/2025, 5:41:58 PM"
+        if (!rawDate) return false;
 
-                if (from && formatted < from) return false;
-                if (to && formatted > to) return false;
+        const [datePart] = rawDate.split(','); // "9/14/2025"
+        const [month, day, year] = datePart.trim().split('/').map(Number); // Correct MM/DD/YYYY
+        const rowDate = new Date(year, month - 1, day); // JS month is 0-indexed
 
-                return true;
-            });
-        });
+        // Filter logic
+        const include = (!fromDate || rowDate >= fromDate) && (!toDate || rowDate <= toDate);
+
+
+        return include;
+    });
+});
+
+
 
 
 
