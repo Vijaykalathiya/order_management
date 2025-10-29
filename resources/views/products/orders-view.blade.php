@@ -96,9 +96,9 @@
                     title: "Total",
                     field: "total_amount",
                     headerFilter: "input",
-                    bottomCalc: "sum", // ✅ This shows the sum under the column
-                    bottomCalcFormatter: "money",
-                    bottomCalcFormatterParams: {
+                    topCalc: "sum", // ✅ This shows the sum under the column
+                    topCalcFormatter: "money",
+                    topCalcFormatterParams: {
                         symbol: "₹",
                         precision: 2
                     }
@@ -159,23 +159,28 @@
 
         
 document.getElementById("applyDateFilter").addEventListener("click", () => {
-    const from = document.getElementById("dateFrom").value; // YYYY-MM-DD
-    const to = document.getElementById("dateTo").value;     // YYYY-MM-DD
+    const fromVal = document.getElementById("dateFrom").value; // "YYYY-MM-DD"
+    const toVal = document.getElementById("dateTo").value;     // "YYYY-MM-DD"
 
-    const fromDate = from ? new Date(from) : null;
-    const toDate = to ? new Date(to) : null;
+    // Convert input values into Date objects safely (ignore timezones)
+    const fromDate = fromVal ? new Date(fromVal + "T00:00:00") : null;
+    const toDate = toVal ? new Date(toVal + "T23:59:59") : null; // include whole day
 
     table.setFilter((rowData) => {
-        const rawDate = rowData.created_at; // e.g., "9/14/2025, 5:41:58 PM"
+        const rawDate = rowData.created_at; // e.g. "10/29/2025, 3:17:51 PM"
         if (!rawDate) return false;
 
-        const [datePart] = rawDate.split(','); // "9/14/2025"
-        const [month, day, year] = datePart.trim().split('/').map(Number); // Correct MM/DD/YYYY
-        const rowDate = new Date(year, month - 1, day); // JS month is 0-indexed
+        // Extract date part & parse MM/DD/YYYY correctly
+        const [datePart] = rawDate.split(",");
+        const [month, day, year] = datePart.trim().split("/").map(Number);
 
-        // Filter logic
-        const include = (!fromDate || rowDate >= fromDate) && (!toDate || rowDate <= toDate);
+        // Construct row date with no time bias
+        const rowDate = new Date(year, month - 1, day, 12, 0, 0); // midday = avoids timezone drift
 
+        // Apply inclusive filter
+        const include =
+            (!fromDate || rowDate >= fromDate) &&
+            (!toDate || rowDate <= toDate);
 
         return include;
     });

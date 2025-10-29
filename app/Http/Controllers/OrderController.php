@@ -87,11 +87,15 @@ class OrderController extends Controller
                     $lastGroupIndex = $grouped->count() - 1;
     
                     foreach ($grouped as $index => $items) {
+                        $subTotal = collect($items)->sum(function ($item) {
+                            return $item['qty'] * $item['price'];
+                        });
+
                         $includeTotal = ($index === $lastGroupIndex);
-                        $this->printToPrinter($items, $nextTokenNumber, $items[0]['station'], $index+1, $lastGroupIndex+1, $includeTotal, $grandTotal);
+                        $this->printToPrinter($items, $nextTokenNumber, $items[0]['station'], $index+1, $lastGroupIndex+1, $includeTotal, $grandTotal, $subTotal);
                     }
                 } else {
-                    $this->printToPrinter($orderItems, $nextTokenNumber, null, null, null, true, $grandTotal);
+                    $this->printToPrinter($orderItems, $nextTokenNumber, null, null, null, true, $grandTotal, 0);
                 }
     
                 DB::commit();
@@ -117,7 +121,7 @@ class OrderController extends Controller
     }
 
 
-    private function printToPrinter($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0)
+    private function printToPrinter($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0, $subTotal = 0)
     {
 
         // "smb://localhost/TVS3230",
@@ -136,6 +140,14 @@ class OrderController extends Controller
                 $printer = new Printer($connector);
             
                 // === HEADER ===
+
+                $printer->setJustification(Printer::JUSTIFY_CENTER);
+                $printer->setTextSize(1, 1);
+                $printer->setEmphasis(false);
+                $printer->setUnderline(Printer::UNDERLINE_SINGLE);
+                $printer->text("MURTI PRASADAM\n");
+                $printer->setUnderline(Printer::UNDERLINE_NONE);
+
                 $printer->setJustification(Printer::JUSTIFY_CENTER);
                 $printer->setTextSize(1, 2);
                 $printer->setEmphasis(true);
@@ -143,9 +155,12 @@ class OrderController extends Controller
                 // Station (if provided)
                 if ($station) {
                     $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
                     $printer->text("$station\n");
                 }
 
+
+                $printer->selectPrintMode(Printer::MODE_FONT_A);
                 $printer->setTextSize(1, 1);
                 $printer->setEmphasis(true);
                 if ($station) {
@@ -160,7 +175,8 @@ class OrderController extends Controller
                 // Date and Time
                 $currentTime = date('d-m-Y h:i A');
                 $printer->text("Date: $currentTime\n");
-                $printer->feed();
+                $printer->text("-------------------------------\n");
+                // $printer->feed();
             
                 // === ITEM LIST ===
                 $printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -168,10 +184,12 @@ class OrderController extends Controller
                 // Switch to smaller font to fit more text per line
                 $printer->setFont(Printer::FONT_A);
 
+                $printer->setEmphasis(true);
                 foreach ($items as $item) {
                     $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
                     $printer->text($line);
                 }
+                $printer->setEmphasis(false);
 
                 $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
 
@@ -181,20 +199,35 @@ class OrderController extends Controller
                     // Print remaining parts on new lines, qty and price empty
                     $line .= sprintf("%-16s\n", $nameParts[$i]);
                 }
+                $printer->text("-------------------------------\n");
 
                 // Reset to default font after item list
                 $printer->setFont(Printer::FONT_A);
 
-            
                 // === TOTAL ===
                 if ($includeTotal) {
-                    $printer->feed();
-                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    // $printer->feed();
                     $printer->setEmphasis(true);
-                    $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+                    $printer->setTextSize(1,1);
+                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    if ($station) {
+                        $printer->setPrintLeftMargin(125);
+                        $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
+                    }
+                    $printer->setPrintLeftMargin(0);
+                    $printer->text("GRAND TOTAL:" . number_format($grandTotal, 2) . "\n");
+                    $printer->setEmphasis(false);
+                } else {
+                    // $printer->feed();
+                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    $printer->setPrintLeftMargin(125);
+                    $printer->setEmphasis(true);
+                    $printer->setTextSize(1,1);
+                    $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
                     $printer->setEmphasis(false);
                 }
             
+                $printer->selectPrintMode(Printer::MODE_FONT_A);
                 // === FINALIZE ===
                 $printer->feed(2); // Feed 2 lines for space
                 $printer->cut(); // Cut the paper

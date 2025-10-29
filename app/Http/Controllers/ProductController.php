@@ -89,7 +89,6 @@ class ProductController extends Controller
                 $itemCode = $row['item code'] ?? null;
         	$checkExist = Product::where('item_code', $itemCode)->first();
                 if (!$itemCode || $checkExist) {
-                    $checkExist->selling_price = safeDecimal($row['selling price'] ?? null);
                     $checkExist->category_name = $row['category name'] ?? null;
                     $checkExist->product_name = $row['product name'] ?? null;
                     $checkExist->product_type = $row['product type'] ?? null;
