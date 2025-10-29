@@ -14,6 +14,7 @@ return [
     */
 
     'name' => env('APP_NAME', 'Laravel'),
+    'PRINT_TEXT' => env('PRINT_TEXT', 'Canteen'),
 
     /*
     |--------------------------------------------------------------------------

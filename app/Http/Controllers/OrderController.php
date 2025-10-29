@@ -145,7 +145,8 @@ class OrderController extends Controller
                 $printer->setTextSize(1, 1);
                 $printer->setEmphasis(false);
                 $printer->setUnderline(Printer::UNDERLINE_SINGLE);
-                $printer->text("MURTI PRASADAM\n");
+                $appName = config('app.PRINT_TEXT');
+                $printer->text("$appName\n");
                 $printer->setUnderline(Printer::UNDERLINE_NONE);
 
                 $printer->setJustification(Printer::JUSTIFY_CENTER);
