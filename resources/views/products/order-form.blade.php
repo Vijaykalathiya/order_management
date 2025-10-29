@@ -291,7 +291,7 @@
             <h3>Order Summary</h3>
             <div class="order-summary-header"> 
                 <label>
-                    <input type="checkbox" id="printByStation">
+                    <input type="checkbox" id="printByStation" checked>
                     Print by Station
                 </label>
                 <div class="form-footer">
@@ -496,15 +496,22 @@
                         orderList = [];
                         const $tbody = $('#orderSummary tbody');
                         $tbody.empty();
+
+                        const button = document.getElementById("printOrder");
+                        button.disabled = false;
                     },
                     error: function (xhr) {
                         alert('Failed to print: ' + xhr.responseJSON?.error);
+                        const button = document.getElementById("printOrder");
+                        button.disabled = false;
                     }
                 });
             }
     
             // Manual Print Button
             $('#printOrder').click(function () {
+                const button = document.getElementById("printOrder");
+                button.disabled = true;
                 handlePrint();
             });
 
