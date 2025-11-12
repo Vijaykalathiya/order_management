@@ -316,268 +316,290 @@
 @endsection
 
 @section('scripts')
-    <script src="{{ asset('js/jquery-3.6.0.min.js') }}"></script>
+<script src="{{ asset('js/jquery-3.6.0.min.js') }}"></script>
 
-    <script>
-        const products = @json($products);
-        const bestSellers = @json($bestSellers);
-    
-        let currentItems = [];
-    
-        function renderItems(items) {
-            currentItems = items;
-            displayFilteredItems($('#itemSearchInput').val());
+<script>
+    const products = @json($products);
+    const bestSellers = @json($bestSellers);
+
+    let currentItems = [];
+    let activeRow = null;
+
+    function renderItems(items) {
+        currentItems = items;
+        displayFilteredItems($('#itemSearchInput').val());
+    }
+
+    function displayFilteredItems(searchTerm = '') {
+        $('#categoryItemsDisplay').empty();
+        const filtered = currentItems.filter(item =>
+            item.item_code.toLowerCase().includes(searchTerm?.toLowerCase() || '')
+        );
+
+        if (!filtered.length) {
+            $('#categoryItemsDisplay').html('<p>No matching items found.</p>');
+            return;
         }
-    
-        function displayFilteredItems(searchTerm = '') {
-            $('#categoryItemsDisplay').empty();
-    
-            const filtered = currentItems.filter(item =>
-                item.item_code.toLowerCase().includes(searchTerm.toLowerCase())
+
+        filtered.forEach(item => {
+            const card = `
+                <div class="fav-card"
+                    data-code="${item.item_code}"
+                    data-name="${item.product_name}"
+                    data-station="${item.station}"
+                    data-price="${parseFloat(item.selling_price)}"
+                    style="background: #f1f8ff; padding: 10px; border: 1px solid #ccc;
+                           border-radius: 8px; width: 140px; text-align: center; cursor: pointer;">
+                    <small>${item.item_code} - </small>
+                    <strong>${item.product_name}</strong>
+                    <div>₹${parseFloat(item.selling_price).toFixed(2)}</div>
+                </div>
+            `;
+            $('#categoryItemsDisplay').append(card);
+        });
+    }
+
+    $(document).ready(function () {
+        $('.product-id:first').focus();
+        let orderList = [];
+
+        renderItems(bestSellers);
+
+        // --- 1️⃣ SEARCH BY PRODUCT ID (original) ---
+        $(document).on('input', '.product-id', function () {
+            const $row = $(this).closest('tr');
+            const inputCode = $(this).val().trim();
+            const product = products.find(p => p.item_code === inputCode);
+
+            if (product) {
+                $row.find('.product-name').val(product.product_name);
+                $row.find('.product-price').val(product.selling_price);
+            } else {
+                $row.find('.product-name').val('');
+                $row.find('.product-price').val('');
+            }
+        });
+
+        // Move from ID → Qty with Tab/Enter
+        $(document).on('keydown', '.product-id', function (e) {
+            if (e.key === 'Tab' || e.key === 'Enter') {
+                e.preventDefault();
+                const $row = $(this).closest('tr');
+                const $qty = $row.find('.quantity');
+                $qty.focus().select();
+            }
+        });
+
+        // --- 2️⃣ LIVE SEARCH BY PRODUCT NAME (new) ---
+        $(document).on('focus', '.product-name', function () {
+            activeRow = $(this).closest('tr');
+            $(this).removeAttr('readonly');
+        });
+
+        $(document).on('input', '.product-name', function () {
+            const searchTerm = $(this).val().trim().toLowerCase();
+
+            if (!searchTerm) {
+                renderItems(bestSellers);
+                return;
+            }
+
+            const matches = products.filter(p =>
+                p.product_name.toLowerCase().includes(searchTerm)
             );
-    
-            if (filtered.length === 0) {
+
+            $('#categoryItemsDisplay').empty();
+
+            if (!matches.length) {
                 $('#categoryItemsDisplay').html('<p>No matching items found.</p>');
                 return;
             }
-    
-            filtered.forEach(item => {
+
+            matches.forEach(item => {
                 const card = `
-                    <div class="fav-card"
+                    <div class="fav-card search-result"
                         data-code="${item.item_code}"
                         data-name="${item.product_name}"
-                        data-station="${item.station}"
-                        data-price="${parseFloat(item.selling_price)}"
-                        style="background: #f1f8ff; padding: 10px; border: 1px solid #ccc;
-                            border-radius: 8px; width: 140px; text-align: center; cursor: pointer;">
-                        <small>${item.item_code} - </small>
+                        data-price="${item.selling_price}"
+                        data-station="${item.station || 'Default'}"
+                        style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;
+                               padding: 10px; width: 160px; text-align: center; cursor: pointer;">
+                        <small>${item.item_code}</small><br>
                         <strong>${item.product_name}</strong>
                         <div>₹${parseFloat(item.selling_price).toFixed(2)}</div>
                     </div>
                 `;
                 $('#categoryItemsDisplay').append(card);
             });
-        }
-    
-        $(document).ready(function () {
-            $('.product-id:first').focus();
-            let orderList = [];
+        });
 
-            // Load best sellers on page load
+        // Select from live search
+        $(document).on('click', '.search-result', function () {
+            // const code = $(this).data('code');
+            // const name = $(this).data('name');
+            // const price = $(this).data('price');
+
+            // if (activeRow) {
+            //     activeRow.find('.product-id').val(code);
+            //     activeRow.find('.product-name').val(name).attr('readonly', true);
+            //     activeRow.find('.product-price').val(price);
+            //     activeRow.find('.quantity').focus();
+            // }
+
             renderItems(bestSellers);
+        });
 
-            // Live match for product name and price
-            $(document).on('input', '.product-id', function () {
+        // --- 3️⃣ COMMON ORDER ENTRY LOGIC (unchanged) ---
+        function normalizeCodeMatch(list, code) {
+            return list.find(item => String(item.code) === String(code));
+        }
+
+        $(document).on('keydown', '.quantity', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+
                 const $row = $(this).closest('tr');
-                const inputCode = $(this).val().trim();
-                const product = products.find(p => p.item_code === inputCode);
-    
-                if (product) {
-                    $row.find('.product-name').val(product.product_name);
-                    $row.find('.product-price').val(product.selling_price);
-                } else {
-                    $row.find('.product-name').val('');
-                    $row.find('.product-price').val('');
-                }
-            });
-    
-            // Tab directly from ID to QTY
-            $(document).on('keydown', '.product-id', function (e) {
-                if (e.key === 'Tab' || e.key === 'Enter') {
-                    e.preventDefault();
-                    const $row = $(this).closest('tr');
-                    const $qty = $row.find('.quantity');
-                    $qty.focus().select(); // Focus and select text
-                }
-            });
+                const code = $row.find('.product-id').val().trim();
+                const product = products.find(p => p.item_code === code);
 
-            function normalizeCodeMatch(list, code) {
-                return list.find(item => String(item.code) === String(code));
-            }
-
-            // Enter on QTY adds to orderList
-            $(document).on('keydown', '.quantity', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-    
-                    const $row = $(this).closest('tr');
-                    const code = $row.find('.product-id').val().trim();
-                    const product = products.find(p => p.item_code === code);
-    
-                    if (!product) {
-                        alert("Invalid product code");
-                        return;
-                    }
-    
-                    const name = product.product_name;
-                    const price = parseFloat(product.selling_price);
-                    const station = product.station || 'Default';
-                    const qty = parseInt($row.find('.quantity').val().trim());
-    
-                    if (code && name && !isNaN(price)) {
-                        const existing = normalizeCodeMatch(orderList, code);
-                        if (existing) {
-                            existing.qty += qty;
-                        } else {
-                            orderList.push({ code: String(code), name, price, qty: Math.abs(qty), station });
-                        }
-    
-                        updateSummaryTable();
-    
-                        // Clear for next entry
-                        $row.find('.product-id').val('').focus();
-                        $row.find('.product-name').val('');
-                        $row.find('.product-price').val('');
-                        $row.find('.quantity').val('1');
-                    } else {
-                        alert('Complete all fields with valid data.');
-                    }
-                }
-            });
-    
-            // Category buttons
-            $('.category-btn').click(function () {
-                const type = $(this).data('type');
-                if (type === 'best-seller') {
-                    renderItems(bestSellers);
-                } else {
-                    const category = $(this).data('category');
-                    const filtered = products.filter(p => p.category_name === category);
-                    renderItems(filtered);
-                }
-            });
-    
-            // Search input
-            $('#itemSearchInput').on('input', function () {
-                displayFilteredItems($(this).val());
-            });
-    
-            // Click to add to order
-            $(document).on('click', '.fav-card', function () {
-                const code = $(this).data('code');
-                const name = $(this).data('name');
-                const price = parseFloat($(this).data('price'));
-                const station = $(this).data('station') || 'Default';
-    
-                const existing = normalizeCodeMatch(orderList, code);
-                if (existing) {
-                    existing.qty += 1;
-                } else {
-                    orderList.push({ code: String(code), name, price, qty: 1, station });
-                }
-    
-                updateSummaryTable();
-            });
-
-            $(document).on('click', '.delete-item', function () {
-                const index = $(this).closest('tr').data('index');
-                orderList.splice(index, 1); // Remove from list
-                updateSummaryTable();       // Refresh the UI
-            });
-
-                        // Handle Print Logic
-            function handlePrint() {
-                const printByStation = $('#printByStation').is(':checked');
-    
-                if (!orderList.length) {
-                    alert('No items in order!');
+                if (!product) {
+                    alert("Invalid product code");
                     return;
                 }
-    
-                $.ajax({
-                    url: "{{ route('print.order') }}",
-                    type: "POST",
-                    data: {
-                        _token: "{{ csrf_token() }}",
-                        items: orderList,
-                        printByStation: printByStation
-                    },
-                    success: function () {
-                        orderList = [];
-                        const $tbody = $('#orderSummary tbody');
-                        $tbody.empty();
 
-                        const button = document.getElementById("printOrder");
-                        button.disabled = false;
-                    },
-                    error: function (xhr) {
-                        alert('Failed to print: ' + xhr.responseJSON?.error);
-                        const button = document.getElementById("printOrder");
-                        button.disabled = false;
-                    }
-                });
+                const name = product.product_name;
+                const price = parseFloat(product.selling_price);
+                const station = product.station || 'Default';
+                const qty = parseInt($row.find('.quantity').val().trim());
+
+                if (code && name && !isNaN(price)) {
+                    const existing = normalizeCodeMatch(orderList, code);
+                    if (existing) existing.qty += qty;
+                    else orderList.push({ code: String(code), name, price, qty: Math.abs(qty), station });
+
+                    updateSummaryTable();
+                    $row.find('.product-id').val('').focus();
+                    $row.find('.product-name').val('').attr('readonly', true);
+                    $row.find('.product-price').val('');
+                    $row.find('.quantity').val('1');
+                } else {
+                    alert('Complete all fields with valid data.');
+                }
             }
-    
-            // Manual Print Button
-            $('#printOrder').click(function () {
-                const button = document.getElementById("printOrder");
-                button.disabled = true;
-                handlePrint();
-            });
+        });
 
-            $(document).on('click', '.increase-qty', function () {
-                const code = $(this).data('code');
-                const existing = normalizeCodeMatch(orderList, code);
-                if (existing) {
-                    existing.qty++;
-                    updateSummaryTable();
-                }
-            });
+        $('.category-btn').click(function () {
+            const type = $(this).data('type');
+            if (type === 'best-seller') renderItems(bestSellers);
+            else {
+                const category = $(this).data('category');
+                renderItems(products.filter(p => p.category_name === category));
+            }
+        });
 
-            $(document).on('click', '.decrease-qty', function () {
-                const code = $(this).data('code');
-                const existingIndex = orderList.findIndex(item => String(item.code) === String(code));
-                if (existingIndex > -1) {
-                    orderList[existingIndex].qty--;
-                    if (orderList[existingIndex].qty <= 0) {
-                        orderList.splice(existingIndex, 1); // Remove item
-                    }
-                    updateSummaryTable();
-                }
-            });
+        $(document).on('click', '.fav-card', function () {
+            const code = $(this).data('code');
+            const name = $(this).data('name');
+            const price = parseFloat($(this).data('price'));
+            const station = $(this).data('station') || 'Default';
 
-            function updateSummaryTable() {
-                const $tbody = $('#orderSummary tbody');
-                $tbody.empty();
+            const existing = normalizeCodeMatch(orderList, code);
+            if (existing) existing.qty++;
+            else orderList.push({ code: String(code), name, price, qty: 1, station });
 
-                let total_amount = 0;
+            updateSummaryTable();
+        });
 
-                orderList.forEach((item, index) => {
-                    const total = (item.qty * item.price).toFixed(2);
-                    total_amount += parseFloat(total);
+        $(document).on('click', '.delete-item', function () {
+            const index = $(this).closest('tr').data('index');
+            orderList.splice(index, 1);
+            updateSummaryTable();
+        });
 
-                    $tbody.append(`
-                        <tr data-index="${index}">
-                            <td>${item.name}</td>
-                            <td>
-                                <div class="qty-control">
-                                    <button class="qty-btn decrease-qty" data-code="${item.code}">−</button>
-                                    <span class="qty-display">${item.qty}</span>
-                                    <button class="qty-btn increase-qty" data-code="${item.code}">+</button>
-                                </div>
-                            </td>
-                            <td>${item.price}</td>
-                            <td>${total}</td>
-                        </tr>
-                    `);
-                });
+        $(document).on('click', '.increase-qty', function () {
+            const code = $(this).data('code');
+            const existing = normalizeCodeMatch(orderList, code);
+            if (existing) { existing.qty++; updateSummaryTable(); }
+        });
 
+        $(document).on('click', '.decrease-qty', function () {
+            const code = $(this).data('code');
+            const idx = orderList.findIndex(i => String(i.code) === String(code));
+            if (idx > -1) {
+                orderList[idx].qty--;
+                if (orderList[idx].qty <= 0) orderList.splice(idx, 1);
+                updateSummaryTable();
+            }
+        });
+
+        function updateSummaryTable() {
+            const $tbody = $('#orderSummary tbody');
+            $tbody.empty();
+            let total_amount = 0;
+
+            orderList.forEach((item, index) => {
+                const total = (item.qty * item.price).toFixed(2);
+                total_amount += parseFloat(total);
                 $tbody.append(`
-                    <tr>
-                        <td colspan="3" class="order-summary-footer">Total Amount</td>
-                        <td class="order-summary-footer">${total_amount.toFixed(2)}</td>
+                    <tr data-index="${index}">
+                        <td>${item.name}</td>
+                        <td>
+                            <div class="qty-control">
+                                <button class="qty-btn decrease-qty" data-code="${item.code}">−</button>
+                                <span class="qty-display">${item.qty}</span>
+                                <button class="qty-btn increase-qty" data-code="${item.code}">+</button>
+                            </div>
+                        </td>
+                        <td>${item.price}</td>
+                        <td>${total}</td>
                     </tr>
                 `);
-            }
-
-		document.addEventListener('keydown', function(event) {
-                // F7 has keyCode 118
-                if (event.key === 'F7' || event.keyCode === 118) {
-                    event.preventDefault();
-                    handlePrint();
-                }
             });
 
+            $tbody.append(`
+                <tr>
+                    <td colspan="3" class="order-summary-footer">Total Amount</td>
+                    <td class="order-summary-footer">${total_amount.toFixed(2)}</td>
+                </tr>
+            `);
+        }
+
+        function handlePrint() {
+            const printByStation = $('#printByStation').is(':checked');
+            if (!orderList.length) return alert('No items in order!');
+
+            $.ajax({
+                url: "{{ route('print.order') }}",
+                type: "POST",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    items: orderList,
+                    printByStation: printByStation
+                },
+                success: function () {
+                    orderList = [];
+                    $('#orderSummary tbody').empty();
+                    $('#printOrder').prop('disabled', false);
+                },
+                error: function (xhr) {
+                    alert('Failed to print: ' + xhr.responseJSON?.error);
+                    $('#printOrder').prop('disabled', false);
+                }
+            });
+        }
+
+        $('#printOrder').click(function () {
+            $(this).prop('disabled', true);
+            handlePrint();
         });
-    </script>
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'F7' || e.keyCode === 118) {
+                e.preventDefault();
+                handlePrint();
+            }
+        });
+    });
+</script>
 @endsection
+

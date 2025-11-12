@@ -15,6 +15,242 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    public function index()
+    {
+        return view('products.orders-view');
+    }
+
+    /**
+     * Get paginated orders data for Tabulator
+     */
+    public function getData(Request $request)
+    {
+        $query = Order::with(['items', 'token']);
+
+        // Apply date filters
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        // Apply column filters
+        if ($request->filled('filter')) {
+            foreach ($request->filter as $filter) {
+                $field = $filter['field'];
+                $value = $filter['value'];
+
+                if ($field === 'id') {
+                    $query->where('id', $value);
+                } elseif ($field === 'token_number') {
+                    $query->where('token_number', 'like', "%{$value}%");
+                } elseif ($field === 'token.number') {
+                    $query->whereHas('token', function($q) use ($value) {
+                        $q->where('number', 'like', "%{$value}%");
+                    });
+                } elseif ($field === 'total_amount') {
+                    $query->where('total_amount', '>=', $value);
+                }
+            }
+        }
+
+        // Apply sorting
+        $sortField = $request->input('sort', 'created_at');
+        $sortDir = $request->input('dir', 'desc');
+        
+        if ($sortField === 'created_at') {
+            $query->orderBy('created_at', $sortDir);
+        } elseif ($sortField === 'total_amount') {
+            $query->orderBy('total_amount', $sortDir);
+        }
+
+        // Get total count before pagination
+        $totalCount = $query->count();
+
+        // Apply pagination
+        $page = $request->input('page', 1);
+        $size = $request->input('size', 50);
+        
+        $orders = $query->skip(($page - 1) * $size)
+                       ->take($size)
+                       ->get();
+
+        // Format the response for Tabulator
+        return response()->json([
+            'last_page' => ceil($totalCount / $size),
+            'data' => $orders->map(function($order) {
+                return [
+                    'id' => $order->id,
+                    'token_number' => $order->token_number,
+                    'token' => $order->token ? ['number' => $order->token->number] : null,
+                    'items' => $order->items->map(function($item) {
+                        return [
+                            'item_code' => $item->item_code,
+                            'name' => $item->name,
+                            'qty' => $item->qty,
+                            'price' => $item->price,
+                            'station' => $item->station,
+                        ];
+                    }),
+                    'total_amount' => $order->total_amount,
+                    'created_at' => $order->created_at->toDateTimeString(),
+                ];
+            })
+        ]);
+    }
+
+    /**
+     * Get analytics data
+     */
+    public function getAnalytics(Request $request)
+    {
+        try {
+            $dateFrom = $request->input('date_from');
+            $dateTo = $request->input('date_to');
+
+            // Build base query
+            $ordersQuery = Order::query();
+            
+            if ($dateFrom) {
+                $ordersQuery->whereDate('created_at', '>=', $dateFrom);
+            }
+            if ($dateTo) {
+                $ordersQuery->whereDate('created_at', '<=', $dateTo);
+            }
+
+            // Statistics
+            $totalOrders = (clone $ordersQuery)->count();
+            $totalRevenue = (clone $ordersQuery)->sum('total_amount') ?? 0;
+            $avgOrderValue = $totalOrders > 0 ? ($totalRevenue / $totalOrders) : 0;
+
+            $statistics = [
+                'totalOrders' => $totalOrders,
+                'totalRevenue' => round($totalRevenue, 2),
+                'todayOrders' => Order::whereDate('created_at', today())->count(),
+                'avgOrderValue' => round($avgOrderValue, 2),
+            ];
+
+            // Top 10 selling items - Check if OrderItem model exists
+            $topItems = [];
+            if (class_exists('App\Models\OrderItem')) {
+                $topItemsQuery = OrderItem::select('name', DB::raw('SUM(qty) as total_quantity'))
+                    ->groupBy('name')
+                    ->orderBy('total_quantity', 'desc')
+                    ->limit(10);
+
+                if ($dateFrom || $dateTo) {
+                    $topItemsQuery->whereHas('order', function($q) use ($dateFrom, $dateTo) {
+                        if ($dateFrom) $q->whereDate('created_at', '>=', $dateFrom);
+                        if ($dateTo) $q->whereDate('created_at', '<=', $dateTo);
+                    });
+                }
+
+                $topItems = $topItemsQuery->get()->toArray();
+            } else {
+                // Fallback: Extract from order items JSON/relationship
+                $orders = (clone $ordersQuery)->with('items')->get();
+                $itemCounts = [];
+                
+                foreach ($orders as $order) {
+                    foreach ($order->items as $item) {
+                        $name = $item->name ?? $item['name'] ?? 'Unknown';
+                        $qty = $item->qty ?? $item['qty'] ?? 1;
+                        
+                        if (!isset($itemCounts[$name])) {
+                            $itemCounts[$name] = 0;
+                        }
+                        $itemCounts[$name] += $qty;
+                    }
+                }
+                
+                arsort($itemCounts);
+                $topItems = array_map(function($name, $count) {
+                    return ['name' => $name, 'total_quantity' => $count];
+                }, array_keys(array_slice($itemCounts, 0, 10)), array_slice($itemCounts, 0, 10));
+            }
+
+            // Sales trend (last 7 days or filtered period)
+            $salesTrend = [];
+            
+            if ($dateFrom && $dateTo) {
+                $salesTrendQuery = Order::select(
+                    DB::raw('DATE(created_at) as date'),
+                    DB::raw('SUM(total_amount) as total'),
+                    DB::raw('COUNT(*) as count')
+                )
+                ->whereDate('created_at', '>=', $dateFrom)
+                ->whereDate('created_at', '<=', $dateTo)
+                ->groupBy('date')
+                ->orderBy('date', 'asc');
+                
+                $salesTrend = $salesTrendQuery->get()->map(function($item) {
+                    return [
+                        'date' => date('M d', strtotime($item->date)),
+                        'total' => (float) $item->total,
+                        'count' => $item->count,
+                    ];
+                })->toArray();
+            } else {
+                // Get last 30 days to ensure we have some data
+                $salesTrendQuery = Order::select(
+                    DB::raw('DATE(created_at) as date'),
+                    DB::raw('SUM(total_amount) as total'),
+                    DB::raw('COUNT(*) as count')
+                )
+                ->where('created_at', '>=', now()->subDays(30))
+                ->groupBy('date')
+                ->orderBy('date', 'asc');
+                
+                $results = $salesTrendQuery->get();
+                
+                // If no data in last 30 days, get the most recent data
+                if ($results->isEmpty()) {
+                    $salesTrendQuery = Order::select(
+                        DB::raw('DATE(created_at) as date'),
+                        DB::raw('SUM(total_amount) as total'),
+                        DB::raw('COUNT(*) as count')
+                    )
+                    ->groupBy('date')
+                    ->orderBy('date', 'desc')
+                    ->limit(7);
+                    
+                    $results = $salesTrendQuery->get()->reverse()->values();
+                }
+                
+                $salesTrend = $results->map(function($item) {
+                    return [
+                        'date' => date('M d', strtotime($item->date)),
+                        'total' => (float) $item->total,
+                        'count' => $item->count,
+                    ];
+                })->toArray();
+            }
+
+            return response()->json([
+                'statistics' => $statistics,
+                'topItems' => $topItems,
+                'salesTrend' => $salesTrend,
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Analytics error: ' . $e->getMessage());
+            
+            return response()->json([
+                'error' => true,
+                'message' => $e->getMessage(),
+                'statistics' => [
+                    'totalOrders' => 0,
+                    'totalRevenue' => 0,
+                    'todayOrders' => 0,
+                    'avgOrderValue' => 0,
+                ],
+                'topItems' => [],
+                'salesTrend' => [],
+            ], 500);
+        }
+    }
+
     public function showOrderDetails(Request $request)
     {
         $orders = Order::with(['items', 'token'])
@@ -250,6 +486,136 @@ class OrderController extends Controller
     
         return response()->json(['success' => true]);
     }
+
+    private function printToPrinterPrathna($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0)
+    {
+
+        // "smb://localhost/TVS3230",
+        // "smb://localhost/RugtekPrinter"
+
+        $printers = [
+            "XP80C"
+        ];
+    
+        $printed = false;
+
+        foreach ($printers as $printerPath) {
+            try {
+                // Connect to the printer
+                $connector = new WindowsPrintConnector($printerPath);
+                $printer = new Printer($connector);
+
+                $printer->setJustification(Printer::JUSTIFY_LEFT);
+                $printer->setTextSize(1, 1);
+                $printer->setEmphasis(true);
+                $printer->text("Prathana Prasadam\n");
+            
+                // === HEADER ===
+                $printer->setJustification(Printer::JUSTIFY_LEFT);
+                // $printer->setTextSize(1, 1);
+                $printer->setEmphasis(true);
+            
+                // Station (if provided)
+                // if ($station) {
+                //     // $printer->setJustification(Printer::JUSTIFY_LEFT);
+                //     $printer->text("$station\n");
+                // }
+
+                // $printer->setTextSize(1, 1);
+                $printer->setEmphasis(true);
+                if ($station) {
+                    $line = sprintf("%-16s TOKEN: %d (%d - %d)\n", $station, $tokenNumber, $totalStation, $subStation);
+                    $printer->text($line);
+                } else {
+                    $printer->text("TOKEN: $tokenNumber\n");
+                }
+                
+                $printer->setTextSize(1, 1);
+                $printer->setEmphasis(false);
+            
+                // Date and Time
+                $currentTime = date('d-m-Y h:i A');
+                $printer->text("Date: $currentTime\n");
+                $printer->feed();
+            
+                // === ITEM LIST ===
+                $printer->setJustification(Printer::JUSTIFY_LEFT);
+
+                // Switch to smaller font to fit more text per line
+                $printer->setFont(Printer::FONT_A);
+
+                foreach ($items as $item) {
+                    $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
+                    $printer->text($line);
+                }
+
+                $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
+
+                $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
+
+                for ($i = 1; $i < count($nameParts); $i++) {
+                    // Print remaining parts on new lines, qty and price empty
+                    $line .= sprintf("%-16s\n", $nameParts[$i]);
+                }
+
+                // Reset to default font after item list
+                $printer->setFont(Printer::FONT_A);
+
+            
+                // === TOTAL ===
+                if ($includeTotal) {
+                    $printer->feed();
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    $printer->setEmphasis(true);
+                    $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+                    $printer->setEmphasis(false);
+                }
+            
+                // === FINALIZE ===
+                $printer->feed(2); // Feed 2 lines for space
+                $printer->cut(); // Cut the paper
+                $printer->close(); // Close the printer connection
+
+                $printed = true;
+                break;
+
+            } catch (\Exception $e) {
+                // Error handling: Log the error if print fails
+                 \Log::error("Print failed: " . $e->getMessage());
+                \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
+                continue;
+            }
+        }
+        if (!$printed) {
+            return response()->json(['error' => 'All printers failed'], 500);
+        }
+    
+        return response()->json(['success' => true]);
+    }
+
+    public function deleteRange(Request $request)
+    {
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+
+        $query = Order::query();
+
+        if ($dateFrom && $dateTo) {
+            $query->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
+        } elseif ($dateFrom) {
+            $query->where('created_at', '>=', $dateFrom . ' 00:00:00');
+        } elseif ($dateTo) {
+            $query->where('created_at', '<=', $dateTo . ' 23:59:59');
+        }
+
+        $deletedCount = $query->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$deletedCount} orders deleted successfully.",
+        ]);
+    }
+
 
 
 }
