@@ -487,7 +487,7 @@ class OrderController extends Controller
         return response()->json(['success' => true]);
     }
 
-    private function printToPrinterPrathna($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0)
+    private function printToPrinterPrathna($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0, $subTotal = 0)
     {
 
         // "smb://localhost/TVS3230",
@@ -504,28 +504,36 @@ class OrderController extends Controller
                 // Connect to the printer
                 $connector = new WindowsPrintConnector($printerPath);
                 $printer = new Printer($connector);
+            
+                // === HEADER ===
 
                 $printer->setJustification(Printer::JUSTIFY_LEFT);
                 $printer->setTextSize(1, 1);
-                $printer->setEmphasis(true);
-                $printer->text("Prathana Prasadam\n");
-            
-                // === HEADER ===
+                $printer->setEmphasis(false);
+                $printer->setPrintLeftMargin(110);
+                $printer->setUnderline(Printer::UNDERLINE_SINGLE);
+                $appName = config('app.PRINT_TEXT');
+                $printer->text("$appName\n");
+                $printer->setUnderline(Printer::UNDERLINE_NONE);
+                $printer->setPrintLeftMargin(25);
+
                 $printer->setJustification(Printer::JUSTIFY_LEFT);
-                // $printer->setTextSize(1, 1);
+                $printer->setTextSize(1, 2);
                 $printer->setEmphasis(true);
             
                 // Station (if provided)
-                // if ($station) {
-                //     // $printer->setJustification(Printer::JUSTIFY_LEFT);
-                //     $printer->text("$station\n");
-                // }
+                if ($station) {
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
+                    $printer->text("$station\n");
+                }
 
-                // $printer->setTextSize(1, 1);
+
+                $printer->selectPrintMode(Printer::MODE_FONT_A);
+                $printer->setTextSize(1, 1);
                 $printer->setEmphasis(true);
                 if ($station) {
-                    $line = sprintf("%-16s TOKEN: %d (%d - %d)\n", $station, $tokenNumber, $totalStation, $subStation);
-                    $printer->text($line);
+                    $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
                 } else {
                     $printer->text("TOKEN: $tokenNumber\n");
                 }
@@ -536,7 +544,8 @@ class OrderController extends Controller
                 // Date and Time
                 $currentTime = date('d-m-Y h:i A');
                 $printer->text("Date: $currentTime\n");
-                $printer->feed();
+                $printer->text("-------------------------------\n");
+                // $printer->feed();
             
                 // === ITEM LIST ===
                 $printer->setJustification(Printer::JUSTIFY_LEFT);
@@ -544,10 +553,14 @@ class OrderController extends Controller
                 // Switch to smaller font to fit more text per line
                 $printer->setFont(Printer::FONT_A);
 
+                $printer->setEmphasis(true);
+                $printer->setPrintLeftMargin(0);
                 foreach ($items as $item) {
                     $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
                     $printer->text($line);
                 }
+                $printer->setEmphasis(false);
+                $printer->setPrintLeftMargin(25);
 
                 $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
 
@@ -557,20 +570,35 @@ class OrderController extends Controller
                     // Print remaining parts on new lines, qty and price empty
                     $line .= sprintf("%-16s\n", $nameParts[$i]);
                 }
+                $printer->text("-------------------------------\n");
 
                 // Reset to default font after item list
                 $printer->setFont(Printer::FONT_A);
 
-            
                 // === TOTAL ===
                 if ($includeTotal) {
-                    $printer->feed();
-                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    // $printer->feed();
                     $printer->setEmphasis(true);
-                    $printer->text("TOTAL: Rs. " . number_format($grandTotal, 2) . "\n");
+                    $printer->setTextSize(1,1);
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    if ($station) {
+                        $printer->setPrintLeftMargin(140);
+                        $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
+                    }
+                    $printer->setPrintLeftMargin(50);
+                    $printer->text("GRAND TOTAL:" . number_format($grandTotal, 2) . "\n");
+                    $printer->setEmphasis(false);
+                } else {
+                    // $printer->feed();
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    $printer->setPrintLeftMargin(140);
+                    $printer->setEmphasis(true);
+                    $printer->setTextSize(1,1);
+                    $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
                     $printer->setEmphasis(false);
                 }
             
+                $printer->selectPrintMode(Printer::MODE_FONT_A);
                 // === FINALIZE ===
                 $printer->feed(2); // Feed 2 lines for space
                 $printer->cut(); // Cut the paper
@@ -581,7 +609,7 @@ class OrderController extends Controller
 
             } catch (\Exception $e) {
                 // Error handling: Log the error if print fails
-                 \Log::error("Print failed: " . $e->getMessage());
+                // \Log::error("Print failed: " . $e->getMessage());
                 \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
                 continue;
             }

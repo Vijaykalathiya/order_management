@@ -63,6 +63,32 @@
         background-color: #218838;
     }
 
+    .add-product-form input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+
+    .add-product-form label {
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .add-product-form button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .add-product-form button:hover {
+        background-color: #0056b3;
+    }
+
+
 </style>
 @endsection
 
@@ -88,6 +114,32 @@
                 {{ session('success') }}
             </div>
         @endif
+
+        <hr style="margin: 25px 0; border: 0; border-top: 1px dashed #aaa;">
+
+        <!-- 🆕 Add New Product Form -->
+        <h2 style="margin-bottom:10px;">Add New Product</h2>
+        <form id="addProductForm" class="add-product-form">
+            <div style="margin-bottom: 10px;">
+                <label>Item Code</label><br>
+                <input type="text" id="new_item_code" name="item_code" required>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>Product Name</label><br>
+                <input type="text" id="new_product_name" name="product_name" required>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>Category</label><br>
+                <input type="text" id="new_category_name" name="category_name" required>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>Selling Price</label><br>
+                <input type="number" step="0.01" id="new_selling_price" name="selling_price" required>
+            </div>
+
+            <button type="submit" class="btn-success">Add Product</button>
+            <div id="addProductMsg" style="margin-top:10px; font-weight:bold;"></div>
+        </form>
 
     </div>
 
@@ -139,29 +191,31 @@
             { title: "Product Name", field: "product_name", headerFilter: "input", editor: "input" },
             { title: "Category", field: "category_name", headerFilter: "input", editor: "input" },
             { title: "Price", field: "selling_price", headerFilter: "input", editor: "input" },
-            {
-                title: "Actions",
-                formatter: function (cell) {
-                    return `
-                        <button class="btn-edit" style="color:#007bff;border:none;background:none;">✏️</button>
-                        <button class="btn-delete" style="color:#dc3545;border:none;background:none;">🗑️</button>
-                    `;
+            @if(auth()->user()->isAdmin())
+                {
+                    title: "Actions",
+                    formatter: function (cell) {
+                        return `
+                            <button class="btn-edit" style="color:#007bff;border:none;background:none;">✏️</button>
+                            <button class="btn-delete" style="color:#dc3545;border:none;background:none;">🗑️</button>
+                        `;
+                    },
+                    width: 100,
+                    hozAlign: "center",
+                    cellClick: function (e, cell) {
+                        const row = cell.getRow();
+                        const product = row.getData();
+                        const target = e.target;
+    
+                        if (target.classList.contains("btn-edit")) {
+                            toggleEditRow(row, target);
+                        }
+                        if (target.classList.contains("btn-delete")) {
+                            deleteProduct(product);
+                        }
+                    },
                 },
-                width: 100,
-                hozAlign: "center",
-                cellClick: function (e, cell) {
-                    const row = cell.getRow();
-                    const product = row.getData();
-                    const target = e.target;
-
-                    if (target.classList.contains("btn-edit")) {
-                        toggleEditRow(row, target);
-                    }
-                    if (target.classList.contains("btn-delete")) {
-                        deleteProduct(product);
-                    }
-                },
-            },
+            @endif
         ],
     });
 
@@ -235,6 +289,7 @@
             if (response.ok && data.success) {
                 table.deleteRow(product.id);
                 alert("🗑️ Product deleted successfully!");
+                updateProductCount();
             } else {
                 alert("⚠️ " + data.message);
             }
@@ -328,5 +383,63 @@
             window.location.href = "{{ route('products.export') }}?" + query;
         });
     });
+
+    // 🆕 Handle Add Product Form
+    document.getElementById("addProductForm").addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const msg = document.getElementById("addProductMsg");
+        msg.textContent = "";
+        msg.style.color = "";
+
+        const item_code = document.getElementById("new_item_code").value.trim();
+        const product_name = document.getElementById("new_product_name").value.trim();
+        const category_name = document.getElementById("new_category_name").value.trim();
+        const selling_price = document.getElementById("new_selling_price").value.trim();
+
+        if (!item_code || !product_name || !category_name || !selling_price) {
+            msg.textContent = "⚠️ Please fill all fields.";
+            msg.style.color = "red";
+            return;
+        }
+
+        try {
+            const response = await fetch("{{ route('products.store') }}", {
+                method: "POST",
+                headers: {
+                    "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    item_code,
+                    product_name,
+                    category_name,
+                    selling_price
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                msg.textContent = "✅ Product added successfully!";
+                msg.style.color = "green";
+
+                // Clear form
+                document.getElementById("addProductForm").reset();
+
+                // Refresh the Tabulator table
+                table.addData([data.product], true);
+                updateProductCount();
+            } else {
+                msg.textContent = "⚠️ " + data.message;
+                msg.style.color = "red";
+            }
+        } catch (err) {
+            console.error(err);
+            msg.textContent = "❌ Error adding product: " + err.message;
+            msg.style.color = "red";
+        }
+    });
+
 </script>
 @endsection

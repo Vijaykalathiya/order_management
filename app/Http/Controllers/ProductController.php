@@ -26,13 +26,34 @@ class ProductController extends Controller
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'item_code' => 'required|string|max:50',
+            'product_name' => 'required|string|max:255',
+            'category_name' => 'required|string|max:255',
+            'selling_price' => 'required|numeric|min:0',
+        ]);
+
+        // Check if item_code already exists
+        $exists = \App\Models\Product::where('item_code', $validated['item_code'])->exists();
+
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Item code already exists. Please use a different one.',
+            ]);
+        }
+
+        $product = \App\Models\Product::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product added successfully!',
+            'product' => $product,
+        ]);
     }
+
 
     /**
      * Display the specified resource.

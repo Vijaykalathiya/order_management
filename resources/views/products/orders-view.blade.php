@@ -162,37 +162,40 @@
 <div class="container">
     <h2>Orders Dashboard</h2>
 
-    <!-- Statistics Cards -->
-    <div class="stats-cards">
-        <div class="stat-card">
-            <h4>Total Orders</h4>
-            <div class="value" id="totalOrders">-</div>
+    @if(auth()->user()->isAdmin())
+        <!-- Statistics Cards -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <h4>Total Orders</h4>
+                <div class="value" id="totalOrders">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>Total Revenue</h4>
+                <div class="value" id="totalRevenue">₹0</div>
+            </div>
+            <div class="stat-card">
+                <h4>Today's Orders</h4>
+                <div class="value" id="todayOrders">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>Avg Order Value</h4>
+                <div class="value" id="avgOrderValue">₹0</div>
+            </div>
         </div>
-        <div class="stat-card">
-            <h4>Total Revenue</h4>
-            <div class="value" id="totalRevenue">₹0</div>
+    
+        <!-- Analytics Charts -->
+        <div class="analytics-section">
+            <div class="chart-container">
+                <h3>Top 10 Selling Items</h3>
+                <canvas id="topItemsChart" height="300"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Daily Sales Trend (Last 7 Days)</h3>
+                <canvas id="salesTrendChart" height="300"></canvas>
+            </div>
         </div>
-        <div class="stat-card">
-            <h4>Today's Orders</h4>
-            <div class="value" id="todayOrders">-</div>
-        </div>
-        <div class="stat-card">
-            <h4>Avg Order Value</h4>
-            <div class="value" id="avgOrderValue">₹0</div>
-        </div>
-    </div>
+    @endif
 
-    <!-- Analytics Charts -->
-    <div class="analytics-section">
-        <div class="chart-container">
-            <h3>Top 10 Selling Items</h3>
-            <canvas id="topItemsChart" height="300"></canvas>
-        </div>
-        <div class="chart-container">
-            <h3>Daily Sales Trend (Last 7 Days)</h3>
-            <canvas id="salesTrendChart" height="300"></canvas>
-        </div>
-    </div>
 
     <!-- Filters -->
     <div class="filter-section">
@@ -203,7 +206,9 @@
 
         <button id="exportPdfBtn" class="btn export-btn">📄 Export PDF</button>
         <button id="exportExcelBtn" class="btn export-btn">📊 Export Excel</button>
-        <button id="deleteOrdersBtn" class="btn btn-danger">🗑️ Delete Orders</button>
+        @if(auth()->user()->isAdmin())
+            <button id="deleteOrdersBtn" class="btn btn-danger">🗑️ Delete Orders</button>
+        @endif
 
     </div>
 
@@ -581,8 +586,10 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Initial load
-    loadAnalytics();
+    @if(auth()->user()->isAdmin())
+        // Initial load
+        loadAnalytics();
+    @endif
 });
 </script>
 @endsection
