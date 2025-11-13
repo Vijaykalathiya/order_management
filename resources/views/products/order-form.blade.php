@@ -470,7 +470,11 @@
                 const name = product.product_name;
                 const price = parseFloat(product.selling_price);
                 const station = product.station || 'Default';
-                const qty = parseInt($row.find('.quantity').val().trim());
+                let qty = parseInt($row.find('.quantity').val().trim());
+
+                if (isNaN(qty)) {
+                    qty = 1;
+                }
 
                 if (code && name && !isNaN(price)) {
                     const existing = normalizeCodeMatch(orderList, code);
