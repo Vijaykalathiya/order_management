@@ -284,6 +284,16 @@ document.addEventListener("DOMContentLoaded", function () {
     let lastSalesTrendData = null;
     let analyticsLoading = false;
 
+    // Set default date = today
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("dateFrom").value = today;
+    document.getElementById("dateTo").value = today;
+
+    // Also apply filters initially (optional)
+    currentFilters.date_from = today;
+    currentFilters.date_to = today;
+
+
     // ---------- Tabs ----------
     const tabs = document.querySelectorAll('.tab');
     tabs.forEach(tab => {

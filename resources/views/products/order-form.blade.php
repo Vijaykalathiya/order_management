@@ -615,7 +615,7 @@
 
                 setTimeout(() => {
                     f7Pressed = false;
-                }, 1000);
+                }, 3000);
 
             }
         });
