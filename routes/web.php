@@ -28,6 +28,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/delete-range', [OrderController::class, 'deleteRange'])->name('orders.deleteRange');
 
     Route::post('/products/store', [ProductController::class, 'store'])->name('products.store');
+
+    Route::get('/orders/filter', [OrderController::class, 'filter'])->name('orders.filter');
+    Route::get('/orders/export-all', [OrderController::class, 'exportAll'])->name('orders.exportAll');
+    Route::get('/orders/analysis/export', [OrderController::class, 'exportAnalysis'])
+    ->name('orders.analysis.export');
+
+
+
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

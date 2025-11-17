@@ -644,6 +644,73 @@ class OrderController extends Controller
         ]);
     }
 
+    public function filter(Request $request)
+    {
+        $start = $request->query('start');
+        $end = $request->query('end');
 
+        $orders = Order::whereBetween('order_date', [$start, $end])
+            ->with('items') // if you have relation
+            ->get();
+
+        // For Chart
+        $chartData = $orders
+            ->groupBy(fn($o) => \Carbon\Carbon::parse($o->order_date)->format('Y-m-d'))
+            ->map(fn($group, $date) => [
+                'label' => $date,
+                'total' => $group->sum('total'),
+            ])->values();
+
+        // For Item Summary Grid
+        $itemSummary = $orders->flatMap->items
+            ->groupBy('item_code')
+            ->map(fn($items, $code) => [
+                'item_code' => $code,
+                'item_name' => $items->first()->item_name,
+                'total_qty' => $items->sum('quantity'),
+                'total_amount' => $items->sum(fn($i) => $i->quantity * $i->price),
+            ])->values();
+
+        return response()->json([
+            'orders' => $orders,
+            'chart' => $chartData,
+            'item_summary' => $itemSummary,
+        ]);
+    }
+
+    public function exportAll(Request $request)
+    {
+        $query = Order::with(['items', 'token']);
+
+        if ($request->date_from) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->date_to) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        return response()->json(
+            $query->orderBy('id', 'desc')->get()
+        );
+    }
+
+    public function exportAnalysis(Request $request)
+    {
+        $query = OrderItem::query()
+            ->selectRaw('name as product, SUM(qty) as total_qty');
+
+        // Date filters
+        if ($request->date_from) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->date_to) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $query->groupBy('name')
+            ->orderBy('name');
+
+        return response()->json($query->get());
+    }
 
 }

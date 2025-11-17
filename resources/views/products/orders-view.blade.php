@@ -10,6 +10,30 @@
         max-width: 1400px;
     }
 
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 8px;
+        margin: 18px 0;
+    }
+    .tab {
+        padding: 8px 14px;
+        border-radius: 6px;
+        background: #f1f1f1;
+        cursor: pointer;
+        font-weight: 600;
+        border: 1px solid transparent;
+    }
+    .tab:hover { background: #e8e8e8; }
+    .tab.active {
+        background: white;
+        border-color: #ddd;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
     .analytics-section {
         margin-bottom: 30px;
         display: grid;
@@ -36,10 +60,14 @@
         padding: 15px;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
     }
 
     .filter-section label {
-        margin-right: 15px;
+        margin-right: 5px;
     }
 
     .filter-section input {
@@ -124,7 +152,7 @@
         color: #333;
     }
 
-    #orders-table {
+    #orders-table, #item-summary-table {
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -144,7 +172,6 @@
     .btn-danger:hover {
         background-color: #c82333;
     }
-
 
     @media (max-width: 1024px) {
         .analytics-section {
@@ -182,7 +209,36 @@
                 <div class="value" id="avgOrderValue">₹0</div>
             </div>
         </div>
-    
+    @endif
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <label>From: <input type="date" id="dateFrom"></label>
+        <label>To: <input type="date" id="dateTo"></label>
+        <button id="applyDateFilter" class="btn btn-primary">Apply</button>
+        <button id="clearDateFilter" class="btn btn-secondary">Clear</button>
+
+        {{-- <button id="exportPdfBtn" class="btn export-btn">📄 Export PDF</button> --}}
+        <button id="exportExcelBtn" class="btn export-btn">📊 Export Excel</button>
+        @if(auth()->user()->isAdmin())
+            <button id="deleteOrdersBtn" class="btn btn-danger">🗑️ Delete Orders</button>
+        @endif
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist">
+        <div class="tab active" data-target="orders-panel" role="tab" aria-selected="true">Orders</div>
+        <div class="tab" data-target="analysis-panel" role="tab" aria-selected="false">Analysis</div>
+    </div>
+
+    <!-- Tab panels -->
+    <div id="orders-panel" class="tab-panel active">
+        <!-- Orders Table -->
+        <div id="orders-table"></div>
+    </div>
+
+    <div id="analysis-panel" class="tab-panel">
+        @if(auth()->user()->isAdmin())
         <!-- Analytics Charts -->
         <div class="analytics-section">
             <div class="chart-container">
@@ -194,26 +250,18 @@
                 <canvas id="salesTrendChart" height="300"></canvas>
             </div>
         </div>
-    @endif
-
-
-    <!-- Filters -->
-    <div class="filter-section">
-        <label>From: <input type="date" id="dateFrom"></label>
-        <label>To: <input type="date" id="dateTo"></label>
-        <button id="applyDateFilter" class="btn btn-primary">Apply</button>
-        <button id="clearDateFilter" class="btn btn-secondary">Clear</button>
-
-        <button id="exportPdfBtn" class="btn export-btn">📄 Export PDF</button>
-        <button id="exportExcelBtn" class="btn export-btn">📊 Export Excel</button>
-        @if(auth()->user()->isAdmin())
-            <button id="deleteOrdersBtn" class="btn btn-danger">🗑️ Delete Orders</button>
         @endif
 
-    </div>
+        <!-- Item Summary grid (aggregated items from filtered orders) -->
+        <div class="filter-section">
+            <h3>Item Summary (Filtered)</h3>
+            <button id="exportAnalysisExcelBtn" class="btn export-btn">
+                Export Excel
+            </button>
+        </div>
 
-    <!-- Orders Table -->
-    <div id="orders-table"></div>
+        <div id="item-summary-table"></div>
+    </div>
 </div>
 
 @endsection
@@ -236,7 +284,21 @@ document.addEventListener("DOMContentLoaded", function () {
     let lastSalesTrendData = null;
     let analyticsLoading = false;
 
-    // Initialize Tabulator
+    // ---------- Tabs ----------
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // panels
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            const target = document.getElementById(tab.dataset.target);
+            if (target) target.classList.add('active');
+        });
+    });
+
+    // ---------- Initialize Tabulator Orders Table ----------
     const table = new Tabulator("#orders-table", {
         ajaxURL: "{{ route('orders.data') }}",
         ajaxConfig: "GET",
@@ -303,7 +365,22 @@ document.addEventListener("DOMContentLoaded", function () {
         ]
     });
 
-    // Print Order
+    // ---------- Item Summary Tabulator ----------
+    let itemSummaryTable = new Tabulator("#item-summary-table", {
+        data: [], // load via analytics
+        layout: "fitColumns",
+        pagination: true,
+        paginationSize: 25,
+        paginationSizeSelector: [10,25,50,100],
+        columns: [
+            { title: "Item Code", field: "item_code", headerFilter: "input" },
+            { title: "Item Name", field: "item_name", headerFilter: "input" },
+            { title: "Quantity Sold", field: "total_qty", hozAlign: "right", headerFilter: "input" },
+            { title: "Total Amount", field: "total_amount", hozAlign: "right", formatter: "money", formatterParams: { symbol: "₹", precision: 2 }, headerFilter: "input" },
+        ]
+    });
+
+    // ---------- Print Order ----------
     function printOrder(order) {
         const orderItems = order.items.map(item => ({
             code: item.item_code,
@@ -327,7 +404,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Date filters
+    // ---------- Date filters ----------
     $("#applyDateFilter").on("click", function () {
         currentFilters.date_from = $("#dateFrom").val() || null;
         currentFilters.date_to = $("#dateTo").val() || null;
@@ -344,7 +421,7 @@ document.addEventListener("DOMContentLoaded", function () {
         loadAnalytics();
     });
 
-    // Export PDF
+    // ---------- Export PDF ----------
     $("#exportPdfBtn").on("click", function () {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -379,27 +456,69 @@ document.addEventListener("DOMContentLoaded", function () {
         doc.save(`orders-report-${new Date().toISOString().split('T')[0]}.pdf`);
     });
 
-    // Export Excel
+    // ---------- Export ALL data (PDF or Excel) ----------
+    function fetchAllOrders(callback) {
+        $.ajax({
+            url: "{{ route('orders.exportAll') }}", // NEW dedicated export endpoint
+            type: "GET",
+            data: currentFilters,
+            success: callback,
+            error: () => alert("Failed to fetch full data for export.")
+        });
+    }
+
+    // ---------- Export Excel ----------
+
     $("#exportExcelBtn").on("click", function () {
-        const data = table.getData();
-        if (!data.length) return alert("No data to export.");
+        fetchAllOrders(function (data) {
+            if (!data.length) return alert("No data to export.");
 
-        const formatted = data.map(o => ({
-            "Order ID": o.id,
-            "Token Number": o.token_number,
-            "Receipt Token": o.token?.number || "-",
-            "Items": o.items.map(i => `${i.name} (${i.qty})`).join(", "),
-            "Total": o.total_amount,
-            "Date": new Date(o.created_at).toLocaleString('en-IN'),
-        }));
+            const formatted = data.map(o => ({
+                "Order ID": o.id,
+                "Token Number": o.token_number,
+                "Receipt Token": o.token?.number || "-",
+                "Items": o.items.map(i => `${i.name} (${i.qty})`).join(", "),
+                "Total": o.total_amount,
+                "Date": new Date(o.created_at).toLocaleString('en-IN'),
+            }));
 
-        const ws = XLSX.utils.json_to_sheet(formatted);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Orders");
-        XLSX.writeFile(wb, `orders-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+            const ws = XLSX.utils.json_to_sheet(formatted);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Orders");
+            XLSX.writeFile(wb, `orders-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+        });
     });
 
-    // Delete Orders by Date Range
+    // ---------- Export Analysis Grid (Totals) ----------
+    $("#exportAnalysisExcelBtn").on("click", function () {
+        $.ajax({
+            url: "{{ route('orders.analysis.export') }}",
+            type: "GET",
+            data: currentFilters, // date_from, date_to, etc.
+            success: function (data) {
+                if (!data.length) return alert("No analysis data to export.");
+
+                const formatted = data.map(item => ({
+                    "Product": item.product,
+                    "Total Qty": item.total_qty
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(formatted);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Order Analysis");
+
+                XLSX.writeFile(
+                    wb,
+                    `order-analysis-${new Date().toISOString().split('T')[0]}.xlsx`
+                );
+            },
+            error: () => alert("Failed to export analysis data.")
+        });
+    });
+
+
+
+    // ---------- Delete Orders ----------
     $("#deleteOrdersBtn").on("click", function () {
         const from = $("#dateFrom").val();
         const to = $("#dateTo").val();
@@ -440,8 +559,14 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-    // Analytics Loader
+    // ---------- Analytics Loader ----------
     function loadAnalytics() {
+        // Only load analytics if admin section exists
+        if ($(".analytics-section").length === 0 && $("#topItemsChart").length === 0 && $("#salesTrendChart").length === 0) {
+            // still attempt to load item summary if panel exists
+            // but if analytics are not present, call endpoint may still return stats/item_summary
+        }
+
         if (analyticsLoading) return;
         analyticsLoading = true;
 
@@ -450,27 +575,51 @@ document.addEventListener("DOMContentLoaded", function () {
             type: "GET",
             data: currentFilters,
             success: function (data) {
-                updateStatistics(data.statistics);
+                // update statistics if provided
+                if (data.statistics) {
+                    updateStatistics(data.statistics);
+                }
 
-                if (JSON.stringify(data.topItems) !== JSON.stringify(lastTopItemsData)) {
+                // populate top items chart (if admin)
+                if (data.topItems && JSON.stringify(data.topItems) !== JSON.stringify(lastTopItemsData)) {
                     renderTopItemsChart(data.topItems);
                     lastTopItemsData = data.topItems;
                 }
 
-                if (JSON.stringify(data.salesTrend) !== JSON.stringify(lastSalesTrendData)) {
+                // populate sales trend chart
+                if (data.salesTrend && JSON.stringify(data.salesTrend) !== JSON.stringify(lastSalesTrendData)) {
                     renderSalesTrendChart(data.salesTrend);
                     lastSalesTrendData = data.salesTrend;
+                }
+
+                // populate item summary grid (try several keys commonly used)
+                const itemSummary = data.item_summary ?? data.itemSummary ?? data.items_summary ?? data.items_summary_list ?? data.topItems ?? [];
+                // itemSummary expected to be array of { item_code, item_name, total_qty, total_amount }
+                if (Array.isArray(itemSummary)) {
+                    // Normalize fields if necessary
+                    const normalized = itemSummary.map(i => ({
+                        item_code: i.item_code ?? i.code ?? i.sku ?? i.id ?? '',
+                        item_name: i.item_name ?? i.name ?? i.title ?? '',
+                        total_qty: i.total_qty ?? i.total_quantity ?? i.quantity ?? i.total_quantity_sold ?? 0,
+                        total_amount: i.total_amount ?? i.total_sales ?? i.sales ?? 0,
+                    }));
+                    itemSummaryTable.replaceData(normalized);
+                } else {
+                    itemSummaryTable.clearData();
                 }
             },
             error: function (xhr, status, error) {
                 console.error("Analytics load failed:", error);
-                $(".analytics-section").html(
-                    `<div style="grid-column:1/-1;padding:40px;text-align:center;color:#721c24;background:#f8d7da;border-radius:8px;">
-                        <h3>⚠️ Failed to Load Analytics</h3>
-                        <p>Error: ${xhr.responseJSON?.message || error}</p>
-                        <p>Check browser console (F12) for details</p>
-                    </div>`
-                );
+                // provide a visible message
+                if ($(".analytics-section").length) {
+                    $(".analytics-section").html(
+                        `<div style="grid-column:1/-1;padding:40px;text-align:center;color:#721c24;background:#f8d7da;border-radius:8px;">
+                            <h3>⚠️ Failed to Load Analytics</h3>
+                            <p>Error: ${xhr.responseJSON?.message || error}</p>
+                            <p>Check browser console (F12) for details</p>
+                        </div>`
+                    );
+                }
             },
             complete: function () {
                 analyticsLoading = false;
@@ -478,15 +627,15 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Update statistics
+    // ---------- Update statistics ----------
     function updateStatistics(stats) {
-        $("#totalOrders").text(parseInt(stats.totalOrders).toLocaleString());
-        $("#totalRevenue").text(`₹${parseFloat(stats.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
-        $("#todayOrders").text(parseInt(stats.todayOrders).toLocaleString());
-        $("#avgOrderValue").text(`₹${parseFloat(stats.avgOrderValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
+        $("#totalOrders").text(parseInt(stats.totalOrders || 0).toLocaleString());
+        $("#totalRevenue").text(`₹${parseFloat(stats.totalRevenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
+        $("#todayOrders").text(parseInt(stats.todayOrders || 0).toLocaleString());
+        $("#avgOrderValue").text(`₹${parseFloat(stats.avgOrderValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
     }
 
-    // Render Top Items Chart
+    // ---------- Render Top Items Chart ----------
     function renderTopItemsChart(data) {
         const ctx = document.getElementById("topItemsChart").getContext("2d");
         if (topItemsChart && !topItemsChart._destroyed) topItemsChart.destroy();
@@ -512,9 +661,9 @@ document.addEventListener("DOMContentLoaded", function () {
         topItemsChart = new Chart(ctx, {
             type: "pie",
             data: {
-                labels: data.map(i => i.name),
+                labels: data.map(i => i.name ?? i.item_name ?? i.label ?? 'Item'),
                 datasets: [{
-                    data: data.map(i => parseInt(i.total_quantity)),
+                    data: data.map(i => parseInt(i.total_quantity ?? i.total_qty ?? i.qty ?? 0)),
                     backgroundColor: colors.slice(0, data.length),
                     borderColor: "#fff",
                     borderWidth: 2
@@ -529,7 +678,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         callbacks: {
                             label: (ctx) => {
                                 const total = ctx.dataset.data.reduce((a,b) => a + b, 0);
-                                const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                                const pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : '0.0';
                                 return `${ctx.label}: ${ctx.parsed} (${pct}%)`;
                             }
                         }
@@ -539,7 +688,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Render Sales Trend Chart
+    // ---------- Render Sales Trend Chart ----------
     function renderSalesTrendChart(data) {
         const ctx = document.getElementById("salesTrendChart").getContext("2d");
         if (salesTrendChart && !salesTrendChart._destroyed) salesTrendChart.destroy();
@@ -552,10 +701,10 @@ document.addEventListener("DOMContentLoaded", function () {
         salesTrendChart = new Chart(ctx, {
             type: "line",
             data: {
-                labels: data.map(i => i.date),
+                labels: data.map(i => i.date ?? i.label ?? ''),
                 datasets: [{
                     label: "Daily Revenue",
-                    data: data.map(i => parseFloat(i.total)),
+                    data: data.map(i => parseFloat(i.total ?? i.value ?? 0)),
                     borderColor: "rgba(75,192,192,1)",
                     backgroundColor: "rgba(75,192,192,0.2)",
                     borderWidth: 2,
@@ -586,8 +735,8 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    // ---------- Initial load ----------
     @if(auth()->user()->isAdmin())
-        // Initial load
         loadAnalytics();
     @endif
 });
