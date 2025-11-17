@@ -409,9 +409,7 @@ document.addEventListener("DOMContentLoaded", function () {
         currentFilters.date_from = $("#dateFrom").val() || null;
         currentFilters.date_to = $("#dateTo").val() || null;
         table.setData();
-        @if(auth()->user()->isAdmin())
-            loadAnalytics();
-        @endif
+        loadAnalytics();
     });
 
     $("#clearDateFilter").on("click", function () {
@@ -420,9 +418,7 @@ document.addEventListener("DOMContentLoaded", function () {
         currentFilters = {};
         table.clearFilter();
         table.setData();
-        @if(auth()->user()->isAdmin())
-            loadAnalytics();
-        @endif
+        loadAnalytics();
     });
 
     // ---------- Export PDF ----------
@@ -553,9 +549,7 @@ document.addEventListener("DOMContentLoaded", function () {
             success: function (res) {
                 alert(res.message || "Orders deleted successfully.");
                 table.setData(); // refresh table
-                @if(auth()->user()->isAdmin())
-                    loadAnalytics();
-                @endif
+                loadAnalytics();
             },
             error: function (xhr) {
                 console.error("Delete error:", xhr.responseText);
@@ -568,10 +562,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // ---------- Analytics Loader ----------
     function loadAnalytics() {
         // Only load analytics if admin section exists
-        if ($(".analytics-section").length === 0 && $("#topItemsChart").length === 0 && $("#salesTrendChart").length === 0) {
-            // still attempt to load item summary if panel exists
-            // but if analytics are not present, call endpoint may still return stats/item_summary
-        }
+        @if(auth()->user()->isAdmin())
+            if ($(".analytics-section").length === 0 && $("#topItemsChart").length === 0 && $("#salesTrendChart").length === 0) {
+                // still attempt to load item summary if panel exists
+                // but if analytics are not present, call endpoint may still return stats/item_summary
+            }
+        @endif
 
         if (analyticsLoading) return;
         analyticsLoading = true;
@@ -581,22 +577,24 @@ document.addEventListener("DOMContentLoaded", function () {
             type: "GET",
             data: currentFilters,
             success: function (data) {
-                // update statistics if provided
-                if (data.statistics) {
-                    updateStatistics(data.statistics);
-                }
 
-                // populate top items chart (if admin)
-                if (data.topItems && JSON.stringify(data.topItems) !== JSON.stringify(lastTopItemsData)) {
-                    renderTopItemsChart(data.topItems);
-                    lastTopItemsData = data.topItems;
-                }
-
-                // populate sales trend chart
-                if (data.salesTrend && JSON.stringify(data.salesTrend) !== JSON.stringify(lastSalesTrendData)) {
-                    renderSalesTrendChart(data.salesTrend);
-                    lastSalesTrendData = data.salesTrend;
-                }
+                @if(auth()->user()->isAdmin())
+                    // update statistics if provided
+                    if (data.statistics) {
+                        updateStatistics(data.statistics);
+                    }
+                    // populate top items chart (if admin)
+                    if (data.topItems && JSON.stringify(data.topItems) !== JSON.stringify(lastTopItemsData)) {
+                        renderTopItemsChart(data.topItems);
+                        lastTopItemsData = data.topItems;
+                    }
+                
+                    // populate sales trend chart
+                    if (data.salesTrend && JSON.stringify(data.salesTrend) !== JSON.stringify(lastSalesTrendData)) {
+                        renderSalesTrendChart(data.salesTrend);
+                        lastSalesTrendData = data.salesTrend;
+                    }
+                @endif
 
                 // populate item summary grid (try several keys commonly used)
                 const itemSummary = data.item_summary ?? data.itemSummary ?? data.items_summary ?? data.items_summary_list ?? data.topItems ?? [];
@@ -742,9 +740,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // ---------- Initial load ----------
-    @if(auth()->user()->isAdmin())
-        loadAnalytics();
-    @endif
+    loadAnalytics();
 });
 </script>
 @endsection
