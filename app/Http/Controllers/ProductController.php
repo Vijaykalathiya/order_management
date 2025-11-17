@@ -33,6 +33,7 @@ class ProductController extends Controller
             'product_name' => 'required|string|max:255',
             'category_name' => 'required|string|max:255',
             'selling_price' => 'required|numeric|min:0',
+            'station' => 'required',
         ]);
 
         // Check if item_code already exists

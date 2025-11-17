@@ -133,6 +133,10 @@
                 <input type="text" id="new_category_name" name="category_name" required>
             </div>
             <div style="margin-bottom: 10px;">
+                <label>Station</label><br>
+                <input type="text" id="station" name="station" required>
+            </div>
+            <div style="margin-bottom: 10px;">
                 <label>Selling Price</label><br>
                 <input type="number" step="0.01" id="new_selling_price" name="selling_price" required>
             </div>
@@ -191,6 +195,7 @@
             { title: "Product Name", field: "product_name", headerFilter: "input", editor: "input" },
             { title: "Category", field: "category_name", headerFilter: "input", editor: "input" },
             { title: "Price", field: "selling_price", headerFilter: "input", editor: "input" },
+            { title: "Station", field: "station", headerFilter: "input", editor: "input" },
             @if(auth()->user()->isAdmin())
                 {
                     title: "Actions",
@@ -237,7 +242,7 @@
         button.dataset.mode = "edit";
         row.getCells().forEach(cell => {
             const col = cell.getColumn().getField();
-            if (["product_name", "category_name", "selling_price"].includes(col)) {
+            if (["product_name", "category_name", "selling_price", "station"].includes(col)) {
                 cell._cell.element.classList.add("editing");
             }
         });
@@ -396,8 +401,9 @@
         const product_name = document.getElementById("new_product_name").value.trim();
         const category_name = document.getElementById("new_category_name").value.trim();
         const selling_price = document.getElementById("new_selling_price").value.trim();
+        const station = document.getElementById("station").value.trim();
 
-        if (!item_code || !product_name || !category_name || !selling_price) {
+        if (!item_code || !product_name || !category_name || !selling_price || !station) {
             msg.textContent = "⚠️ Please fill all fields.";
             msg.style.color = "red";
             return;
@@ -414,7 +420,8 @@
                     item_code,
                     product_name,
                     category_name,
-                    selling_price
+                    selling_price,
+                    station,
                 }),
             });
 
