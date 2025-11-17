@@ -288,6 +288,11 @@
 
         <!-- RIGHT: Order Summary -->
         <div class="summary">
+
+            <span>
+                <span style="font-weight: bold;" id="lastTokenAmount"></span>
+            </span>
+
             <h3>Order Summary</h3>
             <div class="order-summary-header"> 
                 <label>
@@ -584,6 +589,7 @@
                     orderList = [];
                     $('#orderSummary tbody').empty();
                     $('#printOrder').prop('disabled', false);
+                    $('#lastTokenAmount').text('Last Order Amount: ' + parseFloat($('.order-summary-footer').last().text()).toFixed(2));
                 },
                 error: function (xhr) {
                     alert('Failed to print: ' + xhr.responseJSON?.error);
