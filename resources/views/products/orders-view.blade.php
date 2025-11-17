@@ -409,7 +409,9 @@ document.addEventListener("DOMContentLoaded", function () {
         currentFilters.date_from = $("#dateFrom").val() || null;
         currentFilters.date_to = $("#dateTo").val() || null;
         table.setData();
-        loadAnalytics();
+        @if(auth()->user()->isAdmin())
+            loadAnalytics();
+        @endif
     });
 
     $("#clearDateFilter").on("click", function () {
@@ -418,7 +420,9 @@ document.addEventListener("DOMContentLoaded", function () {
         currentFilters = {};
         table.clearFilter();
         table.setData();
-        loadAnalytics();
+        @if(auth()->user()->isAdmin())
+            loadAnalytics();
+        @endif
     });
 
     // ---------- Export PDF ----------
@@ -549,7 +553,9 @@ document.addEventListener("DOMContentLoaded", function () {
             success: function (res) {
                 alert(res.message || "Orders deleted successfully.");
                 table.setData(); // refresh table
-                loadAnalytics(); // refresh analytics
+                @if(auth()->user()->isAdmin())
+                    loadAnalytics();
+                @endif
             },
             error: function (xhr) {
                 console.error("Delete error:", xhr.responseText);
