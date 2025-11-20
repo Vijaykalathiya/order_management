@@ -128,13 +128,39 @@
                 <label>Product Name</label><br>
                 <input type="text" id="new_product_name" name="product_name" required>
             </div>
-            <div style="margin-bottom: 10px;">
+            {{-- <div style="margin-bottom: 10px;">
                 <label>Category</label><br>
                 <input type="text" id="new_category_name" name="category_name" required>
+            </div> --}}
+            <div style="margin-bottom: 10px; position: relative;">
+                <label>Category</label><br>
+
+                <input type="text" id="new_category_name" name="category_name" placeholder="Type to filter..." autocomplete="off" required>
+
+                <!-- Listbox -->
+                <ul id="categoryListBox"
+                    style="
+                        display: none;
+                        position: absolute;
+                        top: 58px;
+                        left: 0;
+                        width: 100%;
+                        max-height: 150px;
+                        overflow-y: auto;
+                        background: white;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        list-style: none;
+                        padding: 0;
+                        margin: 0;
+                        z-index: 9999;
+                    ">
+                </ul>
             </div>
+
             <div style="margin-bottom: 10px;">
                 <label>Station</label><br>
-                <input type="text" id="station" name="station" required>
+                <input type="text" id="station" name="station" value="counter-no-" required>
             </div>
             <div style="margin-bottom: 10px;">
                 <label>Selling Price</label><br>
@@ -186,7 +212,7 @@
 
     let table = new Tabulator("#products-table", {
         data: @json($products ?? []),
-        layout: "fitColumns",
+        layout: "fitData",
         pagination: "local",
         paginationSize: 25,
         paginationSizeSelector: [10, 25, 50, 100],
@@ -387,6 +413,34 @@
             const query = new URLSearchParams().toString();
             window.location.href = "{{ route('products.export') }}?" + query;
         });
+
+
+        const categories = @json($categories ?? []);
+        const categoryInput = document.getElementById("new_category_name");
+        const listBox = document.getElementById("categoryListBox");
+
+        categoryInput.addEventListener("input", function() {
+            const value = this.value.toLowerCase();
+            listBox.innerHTML = "";
+            if (value) {
+                const filtered = categories.filter(cat => cat.toLowerCase().includes(value));
+                filtered.forEach(cat => {
+                    const li = document.createElement("li");
+                    li.textContent = cat;
+                    li.style.padding = "8px";
+                    li.style.cursor = "pointer";
+                    li.addEventListener("click", function() {
+                        categoryInput.value = cat;
+                        listBox.innerHTML = "";
+                        listBox.style.display = "none";
+                    });
+                    listBox.appendChild(li);
+                });
+                listBox.style.display = filtered.length ? "block" : "none";
+            } else {
+                listBox.style.display = "none";
+            }
+        });
     });
 
     // 🆕 Handle Add Product Form
@@ -445,6 +499,12 @@
             console.error(err);
             msg.textContent = "❌ Error adding product: " + err.message;
             msg.style.color = "red";
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!categoryInput.contains(e.target) && !listBox.contains(e.target)) {
+            listBox.style.display = "none";
         }
     });
 

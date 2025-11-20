@@ -91,7 +91,8 @@ class ProductController extends Controller
     public function showForm()
     {
         $products = Product::latest()->get(); // You can paginate or filter as needed
-        return view('products.import', compact('products'));
+        $categories = Product::select('category_name')->distinct()->pluck('category_name');
+        return view('products.import', compact('products', 'categories'));
     }
 
     public function import(Request $request)
@@ -451,7 +452,7 @@ class ProductController extends Controller
         if (!$product) return response()->json(['success' => false, 'message' => 'Product not found']);
 
         $product->fill($request->only([
-            'product_name', 'category_name', 'selling_price',
+            'product_name', 'category_name', 'selling_price', 'station'
         ]))->save();
 
         return response()->json(['success' => true]);
