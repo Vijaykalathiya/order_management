@@ -360,265 +360,265 @@ class OrderController extends Controller
     private function printToPrinter($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0, $subTotal = 0)
     {
 
-        // "smb://localhost/TVS3230",
-        // "smb://localhost/RugtekPrinter"
+        $appName = config('app.name');
 
-        $printers = [
-            "smb://localhost/RugtekPrinter"
-        ];
+        if($appName === "MURTI_PRASADAM") {
+            // "smb://localhost/TVS3230",
+            // "smb://localhost/RugtekPrinter"
     
-        $printed = false;
-
-        foreach ($printers as $printerPath) {
-            try {
-                // Connect to the printer
-                $connector = new WindowsPrintConnector($printerPath);
-                $printer = new Printer($connector);
-            
-                // === HEADER ===
-
-                $printer->setJustification(Printer::JUSTIFY_CENTER);
-                $printer->setTextSize(1, 1);
-                $printer->setEmphasis(false);
-                $printer->setUnderline(Printer::UNDERLINE_SINGLE);
-                $appName = config('app.PRINT_TEXT');
-                $printer->text("$appName\n");
-                $printer->setUnderline(Printer::UNDERLINE_NONE);
-
-                $printer->setJustification(Printer::JUSTIFY_CENTER);
-                $printer->setTextSize(1, 2);
-                $printer->setEmphasis(true);
-            
-                // Station (if provided)
-                if ($station) {
-                    $printer->setJustification(Printer::JUSTIFY_CENTER);
-                    $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
-                    $printer->text("$station\n");
-                }
-
-
-                $printer->selectPrintMode(Printer::MODE_FONT_A);
-                $printer->setTextSize(1, 1);
-                $printer->setEmphasis(true);
-                if ($station) {
-                    $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
-                } else {
-                    $printer->text("TOKEN: $tokenNumber\n");
-                }
+            $printers = [
+                "smb://localhost/RugtekPrinter"
+            ];
+        
+            $printed = false;
+    
+            foreach ($printers as $printerPath) {
+                try {
+                    // Connect to the printer
+                    $connector = new WindowsPrintConnector($printerPath);
+                    $printer = new Printer($connector);
                 
-                $printer->setTextSize(1, 1);
-                $printer->setEmphasis(false);
-            
-                // Date and Time
-                $currentTime = date('d-m-Y h:i A');
-                $printer->text("Date: $currentTime\n");
-                $printer->text("-------------------------------\n");
-                // $printer->feed();
-            
-                // === ITEM LIST ===
-                $printer->setJustification(Printer::JUSTIFY_CENTER);
-
-                // Switch to smaller font to fit more text per line
-                $printer->setFont(Printer::FONT_A);
-
-                $printer->setEmphasis(true);
-                foreach ($items as $item) {
-                    $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
-                    $printer->text($line);
-                }
-                $printer->setEmphasis(false);
-
-                $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
-
-                $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
-
-                for ($i = 1; $i < count($nameParts); $i++) {
-                    // Print remaining parts on new lines, qty and price empty
-                    $line .= sprintf("%-16s\n", $nameParts[$i]);
-                }
-                $printer->text("-------------------------------\n");
-
-                // Reset to default font after item list
-                $printer->setFont(Printer::FONT_A);
-
-                // === TOTAL ===
-                if ($includeTotal) {
-                    // $printer->feed();
-                    $printer->setEmphasis(true);
-                    $printer->setTextSize(1,1);
+                    // === HEADER ===
+    
                     $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    $printer->setTextSize(1, 1);
+                    $printer->setEmphasis(false);
+                    $printer->setUnderline(Printer::UNDERLINE_SINGLE);
+                    $printText = config('app.PRINT_TEXT');
+                    $printer->text("$printText\n");
+                    $printer->setUnderline(Printer::UNDERLINE_NONE);
+    
+                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+                    $printer->setTextSize(1, 2);
+                    $printer->setEmphasis(true);
+                
+                    // Station (if provided)
                     if ($station) {
+                        $printer->setJustification(Printer::JUSTIFY_CENTER);
+                        $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
+                        $printer->text("$station\n");
+                    }
+    
+    
+                    $printer->selectPrintMode(Printer::MODE_FONT_A);
+                    $printer->setTextSize(1, 1);
+                    $printer->setEmphasis(true);
+                    if ($station) {
+                        $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
+                    } else {
+                        $printer->text("TOKEN: $tokenNumber\n");
+                    }
+                    
+                    $printer->setTextSize(1, 1);
+                    $printer->setEmphasis(false);
+                
+                    // Date and Time
+                    $currentTime = date('d-m-Y h:i A');
+                    $printer->text("Date: $currentTime\n");
+                    $printer->text("-------------------------------\n");
+                    // $printer->feed();
+                
+                    // === ITEM LIST ===
+                    $printer->setJustification(Printer::JUSTIFY_CENTER);
+    
+                    // Switch to smaller font to fit more text per line
+                    $printer->setFont(Printer::FONT_A);
+    
+                    $printer->setEmphasis(true);
+                    foreach ($items as $item) {
+                        $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
+                        $printer->text($line);
+                    }
+                    $printer->setEmphasis(false);
+    
+                    $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
+    
+                    $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
+    
+                    for ($i = 1; $i < count($nameParts); $i++) {
+                        // Print remaining parts on new lines, qty and price empty
+                        $line .= sprintf("%-16s\n", $nameParts[$i]);
+                    }
+                    $printer->text("-------------------------------\n");
+    
+                    // Reset to default font after item list
+                    $printer->setFont(Printer::FONT_A);
+    
+                    // === TOTAL ===
+                    if ($includeTotal) {
+                        // $printer->feed();
+                        $printer->setEmphasis(true);
+                        $printer->setTextSize(1,1);
+                        $printer->setJustification(Printer::JUSTIFY_CENTER);
+                        if ($station) {
+                            $printer->setPrintLeftMargin(125);
+                            $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
+                        }
+                        $printer->setPrintLeftMargin(0);
+                        $printer->text("GRAND TOTAL:" . number_format($grandTotal, 2) . "\n");
+                        $printer->setEmphasis(false);
+                    } else {
+                        // $printer->feed();
+                        $printer->setJustification(Printer::JUSTIFY_CENTER);
                         $printer->setPrintLeftMargin(125);
+                        $printer->setEmphasis(true);
+                        $printer->setTextSize(1,1);
                         $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
+                        $printer->setEmphasis(false);
                     }
-                    $printer->setPrintLeftMargin(0);
-                    $printer->text("GRAND TOTAL:" . number_format($grandTotal, 2) . "\n");
-                    $printer->setEmphasis(false);
-                } else {
-                    // $printer->feed();
-                    $printer->setJustification(Printer::JUSTIFY_CENTER);
-                    $printer->setPrintLeftMargin(125);
-                    $printer->setEmphasis(true);
-                    $printer->setTextSize(1,1);
-                    $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
-                    $printer->setEmphasis(false);
-                }
-            
-                $printer->selectPrintMode(Printer::MODE_FONT_A);
-                // === FINALIZE ===
-                $printer->feed(2); // Feed 2 lines for space
-                $printer->cut(); // Cut the paper
-                $printer->close(); // Close the printer connection
-
-                $printed = true;
-                break;
-
-            } catch (\Exception $e) {
-                // Error handling: Log the error if print fails
-                // \Log::error("Print failed: " . $e->getMessage());
-                \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
-                continue;
-            }
-        }
-        if (!$printed) {
-            return response()->json(['error' => 'All printers failed'], 500);
-        }
-    
-        return response()->json(['success' => true]);
-    }
-
-    private function printToPrinterPrathna($items, $tokenNumber, $station = null, $subStation= null, $totalStation= null,  $includeTotal = false, $grandTotal = 0, $subTotal = 0)
-    {
-
-        // "smb://localhost/TVS3230",
-        // "smb://localhost/RugtekPrinter"
-
-        $printers = [
-            "XP80C"
-        ];
-    
-        $printed = false;
-
-        foreach ($printers as $printerPath) {
-            try {
-                // Connect to the printer
-                $connector = new WindowsPrintConnector($printerPath);
-                $printer = new Printer($connector);
-            
-                // === HEADER ===
-
-                $printer->setJustification(Printer::JUSTIFY_LEFT);
-                $printer->setTextSize(1, 1);
-                $printer->setEmphasis(false);
-                $printer->setPrintLeftMargin(110);
-                $printer->setUnderline(Printer::UNDERLINE_SINGLE);
-                $appName = config('app.PRINT_TEXT');
-                $printer->text("$appName\n");
-                $printer->setUnderline(Printer::UNDERLINE_NONE);
-                $printer->setPrintLeftMargin(25);
-
-                $printer->setJustification(Printer::JUSTIFY_LEFT);
-                $printer->setTextSize(1, 2);
-                $printer->setEmphasis(true);
-            
-                // Station (if provided)
-                if ($station) {
-                    $printer->setJustification(Printer::JUSTIFY_LEFT);
-                    $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
-                    $printer->text("$station\n");
-                }
-
-
-                $printer->selectPrintMode(Printer::MODE_FONT_A);
-                $printer->setTextSize(1, 1);
-                $printer->setEmphasis(true);
-                if ($station) {
-                    $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
-                } else {
-                    $printer->text("TOKEN: $tokenNumber\n");
-                }
                 
-                $printer->setTextSize(1, 1);
-                $printer->setEmphasis(false);
-            
-                // Date and Time
-                $currentTime = date('d-m-Y h:i A');
-                $printer->text("Date: $currentTime\n");
-                $printer->text("-------------------------------\n");
-                // $printer->feed();
-            
-                // === ITEM LIST ===
-                $printer->setJustification(Printer::JUSTIFY_LEFT);
-
-                // Switch to smaller font to fit more text per line
-                $printer->setFont(Printer::FONT_A);
-
-                $printer->setEmphasis(true);
-                $printer->setPrintLeftMargin(0);
-                foreach ($items as $item) {
-                    $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
-                    $printer->text($line);
-                }
-                $printer->setEmphasis(false);
-                $printer->setPrintLeftMargin(25);
-
-                $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
-
-                $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
-
-                for ($i = 1; $i < count($nameParts); $i++) {
-                    // Print remaining parts on new lines, qty and price empty
-                    $line .= sprintf("%-16s\n", $nameParts[$i]);
-                }
-                $printer->text("-------------------------------\n");
-
-                // Reset to default font after item list
-                $printer->setFont(Printer::FONT_A);
-
-                // === TOTAL ===
-                if ($includeTotal) {
-                    // $printer->feed();
-                    $printer->setEmphasis(true);
-                    $printer->setTextSize(1,1);
-                    $printer->setJustification(Printer::JUSTIFY_LEFT);
-                    if ($station) {
-                        $printer->setPrintLeftMargin(140);
-                        $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
-                    }
-                    $printer->setPrintLeftMargin(50);
-                    $printer->text("GRAND TOTAL:" . number_format($grandTotal, 2) . "\n");
-                    $printer->setEmphasis(false);
-                } else {
-                    // $printer->feed();
-                    $printer->setJustification(Printer::JUSTIFY_LEFT);
-                    $printer->setPrintLeftMargin(140);
-                    $printer->setEmphasis(true);
-                    $printer->setTextSize(1,1);
-                    $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
-                    $printer->setEmphasis(false);
-                }
-            
-                $printer->selectPrintMode(Printer::MODE_FONT_A);
-                // === FINALIZE ===
-                $printer->feed(2); // Feed 2 lines for space
-                $printer->cut(); // Cut the paper
-                $printer->close(); // Close the printer connection
-
-                $printed = true;
-                break;
-
-            } catch (\Exception $e) {
-                // Error handling: Log the error if print fails
-                // \Log::error("Print failed: " . $e->getMessage());
-                \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
-                continue;
-            }
-        }
-        if (!$printed) {
-            return response()->json(['error' => 'All printers failed'], 500);
-        }
+                    $printer->selectPrintMode(Printer::MODE_FONT_A);
+                    // === FINALIZE ===
+                    $printer->feed(2); // Feed 2 lines for space
+                    $printer->cut(); // Cut the paper
+                    $printer->close(); // Close the printer connection
     
-        return response()->json(['success' => true]);
+                    $printed = true;
+                    break;
+    
+                } catch (\Exception $e) {
+                    // Error handling: Log the error if print fails
+                    // \Log::error("Print failed: " . $e->getMessage());
+                    \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
+                    continue;
+                }
+            }
+            if (!$printed) {
+                return response()->json(['error' => 'All printers failed'], 500);
+            }
+        
+            return response()->json(['success' => true]); 
+        } else {
+            // "smb://localhost/TVS3230",
+            // "smb://localhost/RugtekPrinter"
+
+            $printers = [
+                "XP80C"
+            ];
+        
+            $printed = false;
+
+            foreach ($printers as $printerPath) {
+                try {
+                    // Connect to the printer
+                    $connector = new WindowsPrintConnector($printerPath);
+                    $printer = new Printer($connector);
+                
+                    // === HEADER ===
+
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    $printer->setTextSize(1, 1);
+                    $printer->setEmphasis(false);
+                    $printer->setPrintLeftMargin(110);
+                    $printer->setUnderline(Printer::UNDERLINE_SINGLE);
+                    $printText = config('app.PRINT_TEXT');
+                    $printer->text("$printText\n");
+                    $printer->setUnderline(Printer::UNDERLINE_NONE);
+                    $printer->setPrintLeftMargin(25);
+
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+                    $printer->setTextSize(1, 2);
+                    $printer->setEmphasis(true);
+                
+                    // Station (if provided)
+                    if ($station) {
+                        $printer->setJustification(Printer::JUSTIFY_LEFT);
+                        $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
+                        $printer->text("$station\n");
+                    }
+
+
+                    $printer->selectPrintMode(Printer::MODE_FONT_A);
+                    $printer->setTextSize(1, 1);
+                    $printer->setEmphasis(true);
+                    if ($station) {
+                        $printer->text("TOKEN: $tokenNumber ($totalStation - $subStation)\n");
+                    } else {
+                        $printer->text("TOKEN: $tokenNumber\n");
+                    }
+                    
+                    $printer->setTextSize(1, 1);
+                    $printer->setEmphasis(false);
+                
+                    // Date and Time
+                    $currentTime = date('d-m-Y h:i A');
+                    $printer->text("Date: $currentTime\n");
+                    $printer->text("-------------------------------\n");
+                    // $printer->feed();
+                
+                    // === ITEM LIST ===
+                    $printer->setJustification(Printer::JUSTIFY_LEFT);
+
+                    // Switch to smaller font to fit more text per line
+                    $printer->setFont(Printer::FONT_A);
+
+                    $printer->setEmphasis(true);
+                    $printer->setPrintLeftMargin(0);
+                    foreach ($items as $item) {
+                        $line = sprintf("%-16s %-2d Rs.%d\n", strtoupper($item['name']), $item['qty'], $item['price']);
+                        $printer->text($line);
+                    }
+                    $printer->setEmphasis(false);
+                    $printer->setPrintLeftMargin(25);
+
+                    $nameParts = $this->splitItemName(strtoupper($item['name']), 15);
+
+                    $line = sprintf("%-16s %-2d Rs.%d\n", $nameParts[0], $item['qty'], $item['price']);
+
+                    for ($i = 1; $i < count($nameParts); $i++) {
+                        // Print remaining parts on new lines, qty and price empty
+                        $line .= sprintf("%-16s\n", $nameParts[$i]);
+                    }
+                    $printer->text("-------------------------------\n");
+
+                    // Reset to default font after item list
+                    $printer->setFont(Printer::FONT_A);
+
+                    // === TOTAL ===
+                    if ($includeTotal) {
+                        // $printer->feed();
+                        $printer->setEmphasis(true);
+                        $printer->setTextSize(1,1);
+                        $printer->setJustification(Printer::JUSTIFY_LEFT);
+                        if ($station) {
+                            $printer->setPrintLeftMargin(140);
+                            $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
+                        }
+                        $printer->setPrintLeftMargin(50);
+                        $printer->text("GRAND TOTAL:" . number_format($grandTotal, 2) . "\n");
+                        $printer->setEmphasis(false);
+                    } else {
+                        // $printer->feed();
+                        $printer->setJustification(Printer::JUSTIFY_LEFT);
+                        $printer->setPrintLeftMargin(140);
+                        $printer->setEmphasis(true);
+                        $printer->setTextSize(1,1);
+                        $printer->text("SUB TOTAL:" . number_format($subTotal, 2) . "\n");
+                        $printer->setEmphasis(false);
+                    }
+                
+                    $printer->selectPrintMode(Printer::MODE_FONT_A);
+                    // === FINALIZE ===
+                    $printer->feed(2); // Feed 2 lines for space
+                    $printer->cut(); // Cut the paper
+                    $printer->close(); // Close the printer connection
+
+                    $printed = true;
+                    break;
+
+                } catch (\Exception $e) {
+                    // Error handling: Log the error if print fails
+                    // \Log::error("Print failed: " . $e->getMessage());
+                    \Log::error("Printer [$printerPath] failed: " . $e->getMessage());
+                    continue;
+                }
+            }
+            if (!$printed) {
+                return response()->json(['error' => 'All printers failed'], 500);
+            }
+        
+            return response()->json(['success' => true]);
+        }
     }
 
     public function deleteRange(Request $request)

@@ -608,11 +608,11 @@
         document.addEventListener('keydown', function (e) {
             if (e.key === 'F7' || e.keyCode === 118) {
                 e.preventDefault();
-                handlePrint();
-
+                
                 if (f7Pressed) return; // prevents double print
                 f7Pressed = true;
-
+                
+                handlePrint();
                 setTimeout(() => {
                     f7Pressed = false;
                 }, 3000);
