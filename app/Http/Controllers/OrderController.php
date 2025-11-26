@@ -136,8 +136,7 @@ class OrderController extends Controller
             if (class_exists('App\Models\OrderItem')) {
                 $topItemsQuery = OrderItem::select('name', DB::raw('SUM(qty) as total_quantity'))
                     ->groupBy('name')
-                    ->orderBy('total_quantity', 'desc')
-                    ->limit(10);
+                    ->orderBy('total_quantity', 'desc');
 
                 if ($dateFrom || $dateTo) {
                     $topItemsQuery->whereHas('order', function($q) use ($dateFrom, $dateTo) {
@@ -167,7 +166,7 @@ class OrderController extends Controller
                 arsort($itemCounts);
                 $topItems = array_map(function($name, $count) {
                     return ['name' => $name, 'total_quantity' => $count];
-                }, array_keys(array_slice($itemCounts, 0, 10)), array_slice($itemCounts, 0, 10));
+                }, array_keys($itemCounts), $itemCounts);
             }
 
             // Sales trend (last 7 days or filtered period)
