@@ -241,10 +241,10 @@
         @if(auth()->user()->isAdmin())
         <!-- Analytics Charts -->
         <div class="analytics-section">
-            <div class="chart-container">
-                <h3>Top 10 Selling Items</h3>
+            {{-- <div class="chart-container">
+                <h3>All Selling Items</h3>
                 <canvas id="topItemsChart" height="300"></canvas>
-            </div>
+            </div> --}}
             <div class="chart-container">
                 <h3>Daily Sales Trend (Last 7 Days)</h3>
                 <canvas id="salesTrendChart" height="300"></canvas>
@@ -572,12 +572,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // ---------- Analytics Loader ----------
     function loadAnalytics() {
         // Only load analytics if admin section exists
-        @if(auth()->user()->isAdmin())
-            if ($(".analytics-section").length === 0 && $("#topItemsChart").length === 0 && $("#salesTrendChart").length === 0) {
+        // @if(auth()->user()->isAdmin())
+            // if ($(".analytics-section").length === 0 && $("#topItemsChart").length === 0 && $("#salesTrendChart").length === 0) {
                 // still attempt to load item summary if panel exists
                 // but if analytics are not present, call endpoint may still return stats/item_summary
-            }
-        @endif
+        //     }
+        // @endif
 
         if (analyticsLoading) return;
         analyticsLoading = true;
@@ -594,10 +594,10 @@ document.addEventListener("DOMContentLoaded", function () {
                         updateStatistics(data.statistics);
                     }
                     // populate top items chart (if admin)
-                    if (data.topItems && JSON.stringify(data.topItems) !== JSON.stringify(lastTopItemsData)) {
-                        renderTopItemsChart(data.topItems);
-                        lastTopItemsData = data.topItems;
-                    }
+                    // if (data.topItems && JSON.stringify(data.topItems) !== JSON.stringify(lastTopItemsData)) {
+                    //     renderTopItemsChart(data.topItems);
+                    //     lastTopItemsData = data.topItems;
+                    // }
                 
                     // populate sales trend chart
                     if (data.salesTrend && JSON.stringify(data.salesTrend) !== JSON.stringify(lastSalesTrendData)) {
